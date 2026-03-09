@@ -123,9 +123,6 @@ td.cn { font-weight:600; }
 <nav id="nav">
   <div id="logo"><span class="red">LIVE</span> STORM <span class="dim">CHASERS</span></div>
   <a class="nl on" href="#">Live Storm Chasing</a>
-  <a class="nl" href="#">Community</a>
-  <a class="nl" href="#">Tornado Chasers</a>
-  <a class="nl" href="#">Podcast</a>
   <div class="nav-r">
     <button class="nb on"  id="nb-radar" onclick="toggleRadar()">📡 Radar</button>
     <button class="nb won" id="nb-warn"  onclick="toggleWarns()">⚠ Warnings</button>
@@ -240,7 +237,7 @@ async function loadRadar() {
     const f = d.radar.past[d.radar.past.length - 1];
     if (radarLayer) map.removeLayer(radarLayer);
     radarLayer = L.tileLayer(`https://tilecache.rainviewer.com${f.path}/512/{z}/{x}/{y}/6/1_1.png`,
-      { opacity:.62, tileSize:512, zoomOffset:-1 });
+      { opacity:.62, tileSize:512, zoomOffset:-1, minZoom:1, maxZoom:12, maxNativeZoom:12 });
     if (radarVis) radarLayer.addTo(map);
   } catch(e) {}
 }
@@ -300,7 +297,7 @@ function buildTicker(fallback) {
 let satLayer=null, satVis=false;
 function toggleSat() {
   satVis=!satVis;
-  if (satVis) { satLayer=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{opacity:.5}).addTo(map); }
+  if (satVis) { satLayer=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{opacity:.5, maxNativeZoom:17}).addTo(map); }
   else { satLayer&&map.removeLayer(satLayer); satLayer=null; }
   document.getElementById('btn-sat').classList.toggle('on',satVis);
 }
@@ -443,12 +440,57 @@ function updateMap(snData) {
 async function fetchAndUpdate() {
   try {
     const r = await fetch(CORS_PROXY + encodeURIComponent(SN_FEED_URL));
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const t = await r.text();
-    updateMap(parseSNFeed(t));
+    const snData = parseSNFeed(t);
+
+    // DEBUG: show in console which names were found for our chasers
+    CHASER_CONFIG.forEach(cfg => {
+      if (snData[cfg.sn_name]) {
+        console.log(`✅ Found in SN feed: "${cfg.sn_name}" → lat:${snData[cfg.sn_name].lat}, lng:${snData[cfg.sn_name].lng}`);
+      } else {
+        // Show nearby names to help spot typos
+        const names = Object.keys(snData).filter(n => n.toLowerCase().includes(cfg.sn_name.split(' ')[0].toLowerCase()));
+        console.warn(`❌ NOT found: "${cfg.sn_name}". Possible matches: ${names.join(', ')||'none'}`);
+      }
+    });
+
+    showDebug(snData);
+    updateMap(snData);
   } catch(e) {
     console.warn('SN feed error:', e.message);
-    document.getElementById('last-update').textContent = 'Feed error — retrying...';
+    document.getElementById('last-update').textContent = 'Feed error: ' + e.message;
+    showDebug(null, e.message);
     updateMap({});
+  }
+}
+
+function showDebug(snData, err) {
+  let el = document.getElementById('debug-bar');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'debug-bar';
+    el.style.cssText = 'position:fixed;bottom:32px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);color:#fff;font-size:11px;font-family:monospace;padding:5px 14px;border-radius:4px;z-index:9999;max-width:90vw;text-align:center;pointer-events:none;';
+    document.body.appendChild(el);
+  }
+  if (err) {
+    el.style.color='#ff6b6b';
+    el.textContent = `⚠ Feed error: ${err} — check browser console`;
+    return;
+  }
+  CHASER_CONFIG.forEach(cfg => {
+    const found = snData && snData[cfg.sn_name];
+    if (found) {
+      el.style.color = '#7fff7f';
+      el.textContent = `✅ ${cfg.sn_name} found in SN feed · ${found.lat?.toFixed(4)}, ${found.lng?.toFixed(4)} · ${found.moving?'Moving':'Stationary'}`;
+    } else {
+      el.style.color = '#ffcc00';
+      el.textContent = `⚠ "${cfg.sn_name}" not found in SN feed — are you actively reporting position?`;
+    }
+  });
+  // Auto-hide after 10s if found OK
+  if (snData && CHASER_CONFIG.every(c => snData[c.sn_name])) {
+    setTimeout(() => el && (el.style.display='none'), 10000);
   }
 }
 fetchAndUpdate();
