@@ -68,10 +68,11 @@ body { font-family:'Source Sans 3',sans-serif; background:#111; height:100vh; ov
 .li-g { width:12px; height:12px; background:#666; border-radius:50%; border:2px solid #aaa; }
 
 /* POPUP */
-#popup { position:absolute; top:12px; left:12px; width:310px; background:#fff; border-radius:4px; box-shadow:0 4px 22px rgba(0,0,0,.55); z-index:900; display:none; }
+#popup { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); width:310px; background:#fff; border-radius:4px; box-shadow:0 4px 22px rgba(0,0,0,.55); z-index:9999; display:none; cursor:default; user-select:none; }
 #popup.show { display:block; animation:pop .16s ease-out; }
 @keyframes pop { from{opacity:0;transform:scale(.95) translateY(-5px)} to{opacity:1;transform:none} }
-.ph { display:flex; justify-content:space-between; align-items:center; padding:9px 12px 8px; border-bottom:1px solid #e8e8e8; }
+.ph { display:flex; justify-content:space-between; align-items:center; padding:9px 12px 8px; border-bottom:1px solid #e8e8e8; cursor:grab; background:#f7f7f7; border-radius:4px 4px 0 0; }
+.ph:active { cursor:grabbing; }
 .ph-title { font-family:'Oswald',sans-serif; font-size:15px; font-weight:600; color:#111; }
 .ph-close { background:none; border:none; font-size:20px; color:#999; cursor:pointer; }
 .ph-close:hover { color:#333; }
@@ -167,10 +168,9 @@ td.cn { font-weight:600; }
       <button class="ph-close" onclick="closePopup()">×</button>
     </div>
     <div class="ps">
-      <span style="font-size:14px;color:#1da1f2">🐦</span>
       <span id="pbadge" class="badge-s">STREAMING</span>
       <span class="vc" id="pvc">0 viewers</span>
-      <span style="font-size:17px;cursor:pointer;margin-left:2px;color:#555">💬</span>
+      <span style="font-size:17px;cursor:pointer;margin-left:auto;color:#555">💬</span>
     </div>
     <div class="pv" id="pv">
       <video id="sv" autoplay muted playsinline controls></video>
@@ -215,8 +215,8 @@ td.cn { font-weight:600; }
 const CHASER_CONFIG = [
   {
     sn_name:      'Joshua Napper',
-    display_name: 'Josh Napper – AviWxChasers',
-    twitter:      'AviWxChasers',
+    display_name: 'Josh Napper',
+
     streaming:    false,   // ← flip true + add stream_url when going live
     stream_url:   '',
     viewers:      0,
@@ -518,9 +518,11 @@ function openPopup(snName) {
   if (s.heading) parts.push(`🧭 ${Math.round(s.heading)}°`);
   if (s.moving)  parts.push(`🚗 Moving`);
   if (s.ts)      parts.push(`🕐 ${new Date(s.ts*1000).toLocaleTimeString()}`);
-  if (s.twitter) parts.push(`🐦 @${s.twitter}`);
   meta.innerHTML = parts.map(p=>`<span>${p}</span>`).join('');
 
+  document.getElementById('popup').style.left = '';
+  document.getElementById('popup').style.top  = '';
+  document.getElementById('popup').style.transform = '';
   document.getElementById('popup').classList.add('show');
 }
 function closePopup() { document.getElementById('popup').classList.remove('show'); stopStream(); selectedChaser=null; }
@@ -547,11 +549,49 @@ function startStream() {
     else if (vid.canPlayType('application/vnd.apple.mpegurl')) { vid.src=url; vid.play(); }
   }
 }
-function stopStream() {
-  if (hlsInst) { hlsInst.destroy(); hlsInst=null; }
-  const vid=document.getElementById('sv'); if(vid){vid.pause();vid.src='';vid.style.display='none';}
-  const ifr=document.getElementById('si'); if(ifr){ifr.src='';ifr.style.display='none';}
-}
+
+// ── DRAGGABLE POPUP ───────────────────────────────────────────────────────────
+(function() {
+  const popup = document.getElementById('popup');
+  const handle = popup.querySelector('.ph');
+  let dragging = false, ox = 0, oy = 0;
+
+  handle.addEventListener('mousedown', e => {
+    if (e.target.classList.contains('ph-close')) return;
+    dragging = true;
+    const r = popup.getBoundingClientRect();
+    ox = e.clientX - r.left;
+    oy = e.clientY - r.top;
+    popup.style.transform = 'none';
+    popup.style.left = r.left + 'px';
+    popup.style.top  = r.top  + 'px';
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    popup.style.left = (e.clientX - ox) + 'px';
+    popup.style.top  = (e.clientY - oy) + 'px';
+  });
+  document.addEventListener('mouseup', () => dragging = false);
+
+  // Touch support
+  handle.addEventListener('touchstart', e => {
+    if (e.target.classList.contains('ph-close')) return;
+    const t = e.touches[0];
+    dragging = true;
+    const r = popup.getBoundingClientRect();
+    ox = t.clientX - r.left; oy = t.clientY - r.top;
+    popup.style.transform = 'none';
+    popup.style.left = r.left + 'px'; popup.style.top = r.top + 'px';
+  }, { passive:true });
+  document.addEventListener('touchmove', e => {
+    if (!dragging) return;
+    const t = e.touches[0];
+    popup.style.left = (t.clientX - ox) + 'px';
+    popup.style.top  = (t.clientY - oy) + 'px';
+  }, { passive:true });
+  document.addEventListener('touchend', () => dragging = false);
+})();
 </script>
 </body>
 </html>
