@@ -235,8 +235,8 @@ async function loadRadar() {
     const d = await (await fetch('https://api.rainviewer.com/public/weather-maps.json')).json();
     const f = d.radar.past[d.radar.past.length - 1];
     if (radarLayer) map.removeLayer(radarLayer);
-    radarLayer = L.tileLayer(`https://tilecache.rainviewer.com${f.path}/512/{z}/{x}/{y}/6/1_1.png`,
-      { opacity:.62, tileSize:512, zoomOffset:-1, maxNativeZoom:13 });
+    radarLayer = L.tileLayer(`https://tilecache.rainviewer.com${f.path}/256/{z}/{x}/{y}/2/1_1.png`,
+      { opacity:.62, maxNativeZoom:12 });
     if (radarVis) radarLayer.addTo(map);
   } catch(e) {}
 }
@@ -305,40 +305,42 @@ function toggleSat() {
 //  CHASER ICON  — circle + directional arrow, red=streaming, gray=GPS-only
 // ══════════════════════════════════════════════════════════════════════════════
 function makeChaserIcon(heading, streaming) {
-  const CX=22, CY=22, R=11;
-  const fillColor   = streaming ? '#d01c1c' : '#666666';
-  const strokeColor = streaming ? '#ffffff' : '#aaaaaa';
-  const shadowId    = 'sh' + Math.random().toString(36).slice(2,6);
+  const fill   = streaming ? '#d01c1c' : '#777777';
+  const glow   = streaming ? 'rgba(208,28,28,0.5)' : 'rgba(80,80,80,0.3)';
+  const id     = 'f' + Math.random().toString(36).slice(2,7);
 
-  // Directional arrow: triangle pointing north (up), then rotated to heading
-  // Arrow tip: (CX, CY-R-8)  |  Arrow base: (CX±6, CY-R+2)
-  const arrowSVG = (heading !== null && heading !== undefined && heading > 0)
-    ? `<g transform="rotate(${heading} ${CX} ${CY})">
-         <polygon points="${CX},${CY-R-8} ${CX-5},${CY-R+3} ${CX+5},${CY-R+3}"
-           fill="${fillColor}" stroke="${strokeColor}" stroke-width="1.2" stroke-linejoin="round"/>
-       </g>`
-    : '';
-
-  // Pulsing outer ring (streaming only)
-  const ringHTML = streaming
-    ? `<div class="sn-ring"></div>`
-    : '';
-
-  const svgHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44" style="overflow:visible">
+  // TVNweather-style icon: rounded body with a pointed nose indicating direction
+  // The "nose" always points UP in SVG, then we rotate the whole thing to the heading.
+  // Shape: like a fat teardrop / navigation chevron
+  //   - 44×44 viewbox, center at (22,22)
+  //   - Body: rounded rectangle/circle at bottom
+  //   - Point: triangle nose at top
+  const svgContent = `
     <defs>
-      <filter id="${shadowId}" x="-30%" y="-30%" width="160%" height="160%">
-        <feDropShadow dx="0" dy="1.5" stdDeviation="2.5" flood-color="rgba(0,0,0,0.55)"/>
+      <filter id="${id}">
+        <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="rgba(0,0,0,0.6)"/>
       </filter>
     </defs>
-    ${arrowSVG}
-    <circle cx="${CX}" cy="${CY}" r="${R+2.5}" fill="rgba(0,0,0,0.18)" filter="url(#${shadowId})"/>
-    <circle cx="${CX}" cy="${CY}" r="${R}"     fill="${fillColor}" stroke="white" stroke-width="3"/>
-    <circle cx="${CX}" cy="${CY}" r="4.5"     fill="white" opacity="0.92"/>
-  </svg>`;
+    <!-- Outer glow ring (streaming only) -->
+    ${streaming ? `<circle cx="22" cy="22" r="19" fill="none" stroke="${glow}" stroke-width="4"/>` : ''}
+    <!-- Main body: pointed-top shield shape pointing UP, rotated to heading -->
+    <g transform="rotate(${heading || 0} 22 22)" filter="url(#${id})">
+      <!-- Shield/chevron path: pointed at top (north), rounded at bottom -->
+      <path d="M22,4 L33,14 Q34,22 34,26 A12,12 0 0 1 10,26 Q10,22 11,14 Z"
+        fill="${fill}" stroke="white" stroke-width="2.5" stroke-linejoin="round"/>
+      <!-- White center dot -->
+      <circle cx="22" cy="23" r="4" fill="white" opacity="0.95"/>
+    </g>
+  `;
+
+  const ring = streaming ? `<div class="sn-ring"></div>` : '';
 
   return L.divIcon({
     className: 'ci-wrap',
-    html: `<div style="position:relative;width:44px;height:44px">${ringHTML}${svgHTML}</div>`,
+    html: `<div style="position:relative;width:44px;height:44px">
+             ${ring}
+             <svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44" style="overflow:visible">${svgContent}</svg>
+           </div>`,
     iconSize:   [44, 44],
     iconAnchor: [22, 22],
   });
@@ -374,12 +376,10 @@ async function fetchAndUpdate() {
     if (!r.ok) throw new Error(`Worker returned ${r.status}`);
     const geojson = await r.json();
     const snData  = parseWorkerGeoJSON(geojson);
-    showDebug(snData);
     updateMap(snData);
   } catch(e) {
     console.warn('Worker error:', e.message);
     document.getElementById('last-update').textContent = 'Feed error — retrying...';
-    showDebug(null, e.message);
     updateMap({});
   }
 }
@@ -444,38 +444,6 @@ function updateMap(snData) {
   }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-//  STATE & MAP UPDATES
-// ══════════════════════════════════════════════════════════════════════════════
-
-function showDebug(snData, err) {
-  let el = document.getElementById('debug-bar');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'debug-bar';
-    el.style.cssText = 'position:fixed;bottom:32px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);color:#fff;font-size:11px;font-family:monospace;padding:5px 14px;border-radius:4px;z-index:9999;max-width:90vw;text-align:center;pointer-events:none;';
-    document.body.appendChild(el);
-  }
-  if (err) {
-    el.style.color='#ff6b6b';
-    el.textContent = `⚠ Feed error: ${err} — check browser console`;
-    return;
-  }
-  CHASER_CONFIG.forEach(cfg => {
-    const found = snData && snData[cfg.sn_name];
-    if (found) {
-      el.style.color = '#7fff7f';
-      el.textContent = `✅ ${cfg.sn_name} found in SN feed · ${found.lat?.toFixed(4)}, ${found.lng?.toFixed(4)} · ${found.moving?'Moving':'Stationary'}`;
-    } else {
-      el.style.color = '#ffcc00';
-      el.textContent = `⚠ "${cfg.sn_name}" not found in SN feed — are you actively reporting position?`;
-    }
-  });
-  // Auto-hide after 10s if found OK
-  if (snData && CHASER_CONFIG.every(c => snData[c.sn_name])) {
-    setTimeout(() => el && (el.style.display='none'), 10000);
-  }
-}
 fetchAndUpdate();
 setInterval(fetchAndUpdate, REFRESH_MS);
 
