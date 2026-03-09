@@ -221,7 +221,7 @@ const CHASER_CONFIG = [
   // Add more here when ready
 ];
 
-const CORS_PROXY  = 'https://corsproxy.io/?';
+const CORS_PROXY  = 'https://api.allorigins.win/raw?url=';
 const SN_FEED_URL = 'https://www.spotternetwork.org/feeds/gr.txt';
 const REFRESH_MS  = 30_000;
 
@@ -237,7 +237,7 @@ async function loadRadar() {
     const f = d.radar.past[d.radar.past.length - 1];
     if (radarLayer) map.removeLayer(radarLayer);
     radarLayer = L.tileLayer(`https://tilecache.rainviewer.com${f.path}/512/{z}/{x}/{y}/6/1_1.png`,
-      { opacity:.62, tileSize:512, zoomOffset:-1, minZoom:1, maxZoom:12, maxNativeZoom:12 });
+      { opacity:.62, tileSize:512, zoomOffset:-1, maxNativeZoom:11 });
     if (radarVis) radarLayer.addTo(map);
   } catch(e) {}
 }
@@ -525,6 +525,12 @@ function renderPanel() {
 function togglePanel() { document.getElementById('panel').classList.toggle('show'); }
 
 // ── POPUP ─────────────────────────────────────────────────────────────────────
+function stopStream() {
+  if (hlsInst) { hlsInst.destroy(); hlsInst=null; }
+  const vid=document.getElementById('sv'); if(vid){vid.pause();vid.src='';vid.style.display='none';}
+  const ifr=document.getElementById('si'); if(ifr){ifr.src='';ifr.style.display='none';}
+}
+
 function openPopup(snName) {
   const s = chaserState[snName]; if (!s) return;
   selectedChaser = snName;
