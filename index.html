@@ -155,7 +155,8 @@ td.cn { font-weight:600; }
 
   <div id="ileg">
     <div class="li"><div class="li-r"></div><span>Live Stream</span></div>
-    <div class="li"><div class="li-g"></div><span>GPS Only</span></div>
+    <div class="li"><div class="li-g" style="background:#1a9e1a;border-color:#44dd44"></div><span>GPS Active</span></div>
+    <div class="li"><div class="li-g"></div><span>Stale / Offline</span></div>
   </div>
 
   <!-- POPUP -->
@@ -312,63 +313,50 @@ function toggleSat() {
 // ══════════════════════════════════════════════════════════════════════════════
 //  CHASER ICON  — circle + directional arrow, red=streaming, gray=GPS-only
 // ══════════════════════════════════════════════════════════════════════════════
-function makeChaserIcon(heading, streaming) {
+// state: 'streaming' | 'active' | 'stale'
+function makeChaserIcon(heading, state) {
   const id  = 'c' + Math.random().toString(36).slice(2,7);
   const rot = (heading && heading > 0) ? heading : 0;
 
-  // Dome color: red when streaming, gray when GPS only
-  const domeTop = streaming ? '#ff5555' : '#aaaaaa';
-  const domeMid = streaming ? '#cc0000' : '#666666';
-  const domeBot = streaming ? '#7a0000' : '#333333';
+  const domeTop = state === 'streaming' ? '#ff5555'
+                : state === 'active'    ? '#44dd44'
+                :                         '#aaaaaa';
+  const domeMid = state === 'streaming' ? '#cc0000'
+                : state === 'active'    ? '#1a9e1a'
+                :                         '#666666';
+  const domeBot = state === 'streaming' ? '#7a0000'
+                : state === 'active'    ? '#0d5c0d'
+                :                         '#333333';
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
     <defs>
-      <!-- Body gradient: dark charcoal sphere -->
       <radialGradient id="${id}body" cx="38%" cy="30%" r="70%">
         <stop offset="0%"   stop-color="#787878"/>
         <stop offset="45%"  stop-color="#3a3a3a"/>
         <stop offset="100%" stop-color="#111111"/>
       </radialGradient>
-      <!-- Dome gradient: glossy red or gray -->
       <radialGradient id="${id}dome" cx="35%" cy="28%" r="70%">
         <stop offset="0%"   stop-color="${domeTop}"/>
         <stop offset="55%"  stop-color="${domeMid}"/>
         <stop offset="100%" stop-color="${domeBot}"/>
       </radialGradient>
-      <!-- Dome shine -->
       <radialGradient id="${id}shine" cx="30%" cy="25%" r="55%">
         <stop offset="0%"   stop-color="white" stop-opacity="0.55"/>
         <stop offset="100%" stop-color="white" stop-opacity="0"/>
       </radialGradient>
     </defs>
-
-    <!-- Rotate pointer + body together to face heading direction -->
     <g transform="rotate(${rot} 24 24)">
-
-      <!-- Directional pointer — dark triangle pointing UP (north) before rotation -->
-      <!-- Tip at top, base overlaps circle edge -->
       <polygon points="24,3 19,20 29,20"
         fill="#1c1c1c" stroke="#0a0a0a" stroke-width="0.5" stroke-linejoin="round"/>
-
-      <!-- Outer dark ring (sphere edge) -->
       <circle cx="24" cy="26" r="17" fill="#0d0d0d"/>
-
-      <!-- Main sphere body -->
       <circle cx="24" cy="26" r="15.5" fill="url(#${id}body)"/>
-
-      <!-- Inner bezel ring -->
       <circle cx="24" cy="26" r="11" fill="none" stroke="#111" stroke-width="1.5" opacity="0.7"/>
-
-      <!-- Dome -->
       <circle cx="24" cy="26" r="9.5" fill="url(#${id}dome)"/>
-
-      <!-- Dome gloss shine -->
       <circle cx="24" cy="26" r="9.5" fill="url(#${id}shine)"/>
-
     </g>
   </svg>`;
 
-  const ring = streaming
+  const ring = state === 'streaming'
     ? `<div class="sn-ring" style="top:50%;margin-top:2px;left:50%"></div>`
     : '';
 
@@ -447,8 +435,17 @@ function updateMap(snData) {
       return;
     }
 
-    const icon = makeChaserIcon(s.heading, s.streaming);
-    const tipLine = s.streaming ? '🔴 STREAMING' : (s.online ? '📍 GPS Only' : '⚫ Offline');
+    // Determine icon state
+    // streaming = red, active GPS within 30 min = green, stale/offline = gray
+    const ACTIVE_THRESHOLD = 30 * 60; // 30 minutes in seconds
+    const now = Math.floor(Date.now() / 1000);
+    const isActive = s.online && s.ts && (now - s.ts) < ACTIVE_THRESHOLD;
+    const iconState = s.streaming ? 'streaming' : isActive ? 'active' : 'stale';
+
+    const icon = makeChaserIcon(s.heading, iconState);
+    const tipLine = iconState === 'streaming' ? '🔴 STREAMING'
+                  : iconState === 'active'    ? '🟢 GPS Active'
+                  :                             '⚫ Stale / Offline';
     const tipMove = s.moving ? (s.heading ? ` • ${Math.round(s.heading)}°` : ' • Moving') : ' • Stationary';
     const tipHTML = `<b>${s.display_name}</b><br>${tipLine}${tipMove}`;
 
@@ -487,17 +484,19 @@ function renderPanel() {
   tbody.innerHTML = '';
   CHASER_CONFIG.forEach(cfg => {
     const s = chaserState[cfg.sn_name] || cfg;
+    const now2 = Math.floor(Date.now() / 1000);
+    const active2 = s.online && s.ts && (now2 - s.ts) < 1800;
+    const stateLabel = s.streaming
+      ? '<span class="badge-s" style="font-size:10px">STREAMING</span>'
+      : active2
+        ? '<span class="badge-gps" style="background:#1a7a1a;color:#aaffaa">GPS ACTIVE</span>'
+        : '<span class="badge-gps" style="background:#333">OFFLINE</span>';
     const tr = document.createElement('tr');
     tr.className = 'cr';
     const hdg = s.heading ? Math.round(s.heading) + '°' : (s.moving ? 'Moving' : '—');
     tr.innerHTML = `
       <td class="cn">${cfg.display_name}</td>
-      <td>${s.streaming
-        ? '<span class="badge-s" style="font-size:10px">STREAMING</span>'
-        : s.online
-          ? '<span class="badge-gps">GPS ONLY</span>'
-          : '<span class="badge-gps" style="background:#333">OFFLINE</span>'}
-      </td>
+      <td>${stateLabel}</td>
       <td style="font-size:11px;color:#888">${hdg}</td>`;
     tr.onclick = () => {
       if (s.lat&&s.lng) map.setView([s.lat,s.lng],10,{animate:true});
@@ -538,7 +537,11 @@ function openPopup(snName) {
       </div>`;
   } else {
     badge.className='badge-gps';
-    badge.textContent = s.online ? 'GPS ONLY' : 'OFFLINE';
+    const now3 = Math.floor(Date.now() / 1000);
+    const isAct = s.online && s.ts && (now3 - s.ts) < 1800;
+    badge.textContent = isAct ? 'GPS ACTIVE' : 'OFFLINE';
+    badge.style.background = isAct ? '#1a7a1a' : '#333';
+    badge.style.color = isAct ? '#aaffaa' : '#ccc';
     document.getElementById('pvc').style.display='none';
     document.getElementById('norb').style.display='none';
     const icon  = s.online ? (s.moving ? '🚗' : '📍') : '⚫';
