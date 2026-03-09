@@ -221,9 +221,8 @@ const CHASER_CONFIG = [
   // Add more here when ready
 ];
 
-const CORS_PROXY  = 'https://api.allorigins.win/raw?url=';
-const SN_FEED_URL = 'https://www.spotternetwork.org/feeds/gr.txt';
-const REFRESH_MS  = 30_000;
+const WORKER_URL = 'https://spotternetwork-proxy.livestormchaser.workers.dev';
+const REFRESH_MS = 30_000;
 
 // ── MAP ───────────────────────────────────────────────────────────────────────
 const map = L.map('map', { zoomControl:true, attributionControl:false }).setView([38.5,-97.0], 5);
@@ -348,34 +347,42 @@ function makeChaserIcon(heading, streaming) {
 // ══════════════════════════════════════════════════════════════════════════════
 //  SPOTTER NETWORK FEED PARSER
 // ══════════════════════════════════════════════════════════════════════════════
-function parseSNFeed(text) {
+// Parse the GeoJSON returned by our Cloudflare Worker
+// Returns { 'Joshua Napper': { lat, lng, heading, moving, ts }, ... }
+function parseWorkerGeoJSON(geojson) {
   const out = {};
-  const lines = text.split('\n');
-  let cur = null;
-  for (const raw of lines) {
-    const line = raw.trim();
-    const oM = line.match(/^Object:\s*([-\d.]+),([-\d.]+)/);
-    if (oM) { cur = { lat:parseFloat(oM[1]), lng:parseFloat(oM[2]), name:null, heading:null, moving:false, ts:null }; continue; }
-    if (!cur) continue;
-    // Icon: X,X,HEADING,FILE,INDEX,"tooltip\nDATE\nSTATUS\n..."
-    const iM = line.match(/^Icon:\s*\d+,\d+,(\d+),\d+,\d+,"([^"]*)"/);
-    if (iM) {
-      const h = parseInt(iM[1]);
-      cur.heading = h > 0 ? h : null;
-      const parts = iM[2].split(/\\n/);
-      if (parts[0]) cur.name = parts[0].trim();
-      if (parts[1]) { const d=new Date(parts[1].trim().replace(' UTC','')+' UTC'); if (!isNaN(d)) cur.ts=Math.floor(d/1000); }
-      if (parts[2]) cur.moving = parts[2].trim()==='MOVING';
-      continue;
-    }
-    if (line==='End:' && cur?.name) { out[cur.name]=cur; cur=null; }
+  for (const f of (geojson.features || [])) {
+    const p   = f.properties;
+    const lng = f.geometry?.coordinates?.[0];
+    const lat = f.geometry?.coordinates?.[1];
+    if (!lat || !lng) continue;
+    out[p.name] = {
+      name:    p.name,
+      lat:     lat,
+      lng:     lng,
+      heading: p.heading ?? null,
+      moving:  p.status === 'MOVING',
+      ts:      p.timestamp ? Math.floor(new Date(p.timestamp) / 1000) : null,
+    };
   }
   return out;
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-//  STATE & MAP UPDATES
-// ══════════════════════════════════════════════════════════════════════════════
+async function fetchAndUpdate() {
+  try {
+    const r = await fetch(WORKER_URL, { signal: AbortSignal.timeout(10000) });
+    if (!r.ok) throw new Error(`Worker returned ${r.status}`);
+    const geojson = await r.json();
+    const snData  = parseWorkerGeoJSON(geojson);
+    showDebug(snData);
+    updateMap(snData);
+  } catch(e) {
+    console.warn('Worker error:', e.message);
+    document.getElementById('last-update').textContent = 'Feed error — retrying...';
+    showDebug(null, e.message);
+    updateMap({});
+  }
+}
 const markers = {}, chaserState = {};
 let selectedChaser = null, hlsInst = null, mapPanned = false;
 
@@ -437,33 +444,9 @@ function updateMap(snData) {
   }
 }
 
-async function fetchAndUpdate() {
-  try {
-    const r = await fetch(CORS_PROXY + encodeURIComponent(SN_FEED_URL));
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const t = await r.text();
-    const snData = parseSNFeed(t);
-
-    // DEBUG: show in console which names were found for our chasers
-    CHASER_CONFIG.forEach(cfg => {
-      if (snData[cfg.sn_name]) {
-        console.log(`✅ Found in SN feed: "${cfg.sn_name}" → lat:${snData[cfg.sn_name].lat}, lng:${snData[cfg.sn_name].lng}`);
-      } else {
-        // Show nearby names to help spot typos
-        const names = Object.keys(snData).filter(n => n.toLowerCase().includes(cfg.sn_name.split(' ')[0].toLowerCase()));
-        console.warn(`❌ NOT found: "${cfg.sn_name}". Possible matches: ${names.join(', ')||'none'}`);
-      }
-    });
-
-    showDebug(snData);
-    updateMap(snData);
-  } catch(e) {
-    console.warn('SN feed error:', e.message);
-    document.getElementById('last-update').textContent = 'Feed error: ' + e.message;
-    showDebug(null, e.message);
-    updateMap({});
-  }
-}
+// ══════════════════════════════════════════════════════════════════════════════
+//  STATE & MAP UPDATES
+// ══════════════════════════════════════════════════════════════════════════════
 
 function showDebug(snData, err) {
   let el = document.getElementById('debug-bar');
