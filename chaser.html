@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Live Storm Chasers — Chaser Portal</title>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@600;700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Source Sans 3',sans-serif; background:#0f0f0f; color:#eee; min-height:100vh; }
+#app { max-width:440px; margin:0 auto; padding:16px; }
+header { display:flex; align-items:center; gap:10px; margin-bottom:20px; }
+#logo { font-family:'Oswald',sans-serif; font-size:22px; font-weight:700; color:#fff; }
+#logo span { color:#d01c1c; }
+.card { background:#1c1c1c; border:1px solid #333; border-radius:8px; padding:16px; margin-bottom:14px; }
+.card h2 { font-family:'Oswald',sans-serif; font-size:16px; font-weight:600; color:#eee; margin-bottom:12px; text-transform:uppercase; letter-spacing:.5px; }
+input, select, textarea {
+  width:100%; background:#111; border:1px solid #444; color:#eee;
+  font-family:'Source Sans 3',sans-serif; font-size:14px;
+  padding:9px 12px; border-radius:5px; margin-bottom:10px; outline:none;
+}
+input:focus, select:focus, textarea:focus { border-color:#d01c1c; }
+textarea { min-height:70px; resize:vertical; }
+label { font-size:12px; color:#888; display:block; margin-bottom:4px; }
+.btn { width:100%; padding:12px; border:none; border-radius:5px; font-family:'Oswald',sans-serif; font-size:15px; font-weight:600; letter-spacing:.5px; cursor:pointer; transition:all .15s; }
+.btn-red { background:#d01c1c; color:#fff; }
+.btn-red:hover { background:#b01515; }
+.btn-green { background:#1a8c2e; color:#fff; }
+.btn-green:hover { background:#147023; }
+.btn-grey { background:#333; color:#ccc; }
+.btn-grey:hover { background:#444; }
+.status-dot { width:10px;height:10px;border-radius:50%;background:#555;display:inline-block;margin-right:6px; }
+.status-dot.live { background:#2db82d; animation:blink 1.2s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.4} }
+#status-bar { display:flex; align-items:center; font-size:14px; font-weight:600; margin-bottom:14px; }
+.gps-coords { font-size:12px; color:#888; margin-top:6px; font-family:monospace; }
+.msg { padding:8px 12px; border-radius:4px; font-size:13px; margin-bottom:10px; display:none; }
+.msg.ok { background:#1a3a1a; border:1px solid #2d6a2d; color:#7dc87d; }
+.msg.err { background:#3a1a1a; border:1px solid #6a2d2d; color:#c87d7d; }
+.msg.show { display:block; }
+#gps-status { font-size:12px; color:#888; margin-top:8px; }
+.field-row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+hr { border:none; border-top:1px solid #2a2a2a; margin:12px 0; }
+.stream-key-box { background:#111; border:1px solid #444; border-radius:4px; padding:10px 12px; font-family:monospace; font-size:13px; color:#aaa; word-break:break-all; margin-bottom:10px; }
+.copy-btn { background:#2a2a2a; border:1px solid #444; color:#ccc; font-size:12px; padding:4px 10px; border-radius:3px; cursor:pointer; float:right; }
+#section-main { display:none; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div id="logo"><span>LIVE</span> STORM <span style="color:#666;font-size:14px;font-weight:400">CHASERS</span></div>
+    <span style="color:#888;font-size:13px;margin-left:auto">Chaser Portal</span>
+  </header>
+
+  <!-- LOGIN -->
+  <div id="section-login">
+    <div class="card">
+      <h2>🔑 Chaser Login</h2>
+      <div id="login-msg" class="msg"></div>
+      <label>Your Stream Key</label>
+      <input type="password" id="login-key" placeholder="Paste your stream key here..." autocomplete="off">
+      <button class="btn btn-red" onclick="login()">Sign In</button>
+      <p style="font-size:12px;color:#666;margin-top:8px">Get your stream key from the admin. Keep it private.</p>
+    </div>
+  </div>
+
+  <!-- MAIN (after login) -->
+  <div id="section-main">
+    <div id="status-bar">
+      <span class="status-dot" id="live-dot"></span>
+      <span id="status-text">Offline</span>
+      <span style="margin-left:auto;font-size:12px;color:#666" id="viewer-display"></span>
+    </div>
+
+    <!-- GPS TRACKING -->
+    <div class="card">
+      <h2>📍 GPS Tracking</h2>
+      <div id="gps-msg" class="msg"></div>
+      <button class="btn btn-green" id="gps-btn" onclick="toggleGPS()">Start GPS Tracking</button>
+      <div class="gps-coords" id="gps-coords">Waiting for GPS...</div>
+    </div>
+
+    <!-- STREAMING STATUS -->
+    <div class="card">
+      <h2>📡 Streaming</h2>
+      <div id="stream-msg" class="msg"></div>
+
+      <label>Stream Type</label>
+      <select id="stype" onchange="onStreamTypeChange()">
+        <option value="rtmp">OBS / RTMP (self-hosted)</option>
+        <option value="youtube">YouTube Live</option>
+        <option value="twitch">Twitch</option>
+        <option value="other">Other URL</option>
+      </select>
+
+      <!-- RTMP instructions -->
+      <div id="rtmp-section">
+        <label>OBS Stream URL</label>
+        <div class="stream-key-box" id="rtmp-url-box">—</div>
+        <label>OBS Stream Key</label>
+        <div class="stream-key-box" id="rtmp-key-box">
+          —
+          <button class="copy-btn" onclick="copyKey()">Copy</button>
+        </div>
+        <p style="font-size:12px;color:#777;margin-bottom:10px">
+          In OBS → Settings → Stream → Service: Custom → paste URL and key above. When you go live in OBS, you'll appear on the map automatically.
+        </p>
+      </div>
+
+      <!-- External URL section -->
+      <div id="ext-section" style="display:none">
+        <label>Your Live Stream URL</label>
+        <input type="url" id="ext-url" placeholder="https://youtube.com/watch?v=...">
+        <button class="btn btn-green" onclick="saveExtUrl()">Save Stream URL</button>
+      </div>
+
+      <hr>
+      <div class="field-row">
+        <button class="btn btn-green" onclick="setStatus('streaming')">🔴 Go Live</button>
+        <button class="btn btn-grey"  onclick="setStatus('offline')">⏹ Go Offline</button>
+      </div>
+    </div>
+
+    <!-- WEATHER REPORT -->
+    <div class="card">
+      <h2>🌪 Weather Report</h2>
+      <div id="report-msg" class="msg"></div>
+      <label>Report Type</label>
+      <select id="rtype">
+        <option value="tornado">🌪 Tornado</option>
+        <option value="funnel">🌀 Funnel Cloud</option>
+        <option value="wall_cloud">☁ Wall Cloud</option>
+        <option value="hail">🧊 Large Hail</option>
+        <option value="flood">💧 Flash Flood</option>
+        <option value="damage">🔴 Storm Damage</option>
+        <option value="other">📍 Other</option>
+      </select>
+      <label>Intensity (1–5)</label>
+      <select id="rintensity">
+        <option value="1">1 — Minimal</option>
+        <option value="2">2 — Moderate</option>
+        <option value="3">3 — Significant</option>
+        <option value="4">4 — Severe</option>
+        <option value="5">5 — Catastrophic</option>
+      </select>
+      <label>Notes (optional)</label>
+      <textarea id="rnotes" placeholder="Brief description..."></textarea>
+      <button class="btn btn-red" onclick="submitReport()">Submit Report</button>
+    </div>
+
+    <button class="btn btn-grey" onclick="logout()" style="margin-top:4px">Sign Out</button>
+  </div>
+</div>
+
+<script>
+const API = '/api';
+let token = localStorage.getItem('lsc_token');
+let chaserInfo = JSON.parse(localStorage.getItem('lsc_chaser') || 'null');
+let gpsInterval = null;
+let tracking = false;
+let lastLat = null, lastLng = null;
+
+// ── AUTH ──────────────────────────────────────────────────────────────────────
+if (token && chaserInfo) showMain();
+
+async function login() {
+  const key = document.getElementById('login-key').value.trim();
+  if (!key) return showMsg('login-msg', 'Enter your stream key', 'err');
+
+  try {
+    const res = await fetch(`${API}/auth/chaser`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ stream_key: key })
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Login failed');
+
+    token = d.token;
+    chaserInfo = d.chaser;
+    localStorage.setItem('lsc_token', token);
+    localStorage.setItem('lsc_chaser', JSON.stringify(chaserInfo));
+    showMain();
+  } catch(e) {
+    showMsg('login-msg', e.message, 'err');
+  }
+}
+
+function logout() {
+  localStorage.removeItem('lsc_token');
+  localStorage.removeItem('lsc_chaser');
+  location.reload();
+}
+
+function showMain() {
+  document.getElementById('section-login').style.display = 'none';
+  document.getElementById('section-main').style.display = 'block';
+
+  document.getElementById('rtmp-url-box').textContent = `rtmp://${location.hostname}:1935/live`;
+  document.getElementById('rtmp-key-box').innerHTML = `${chaserInfo.stream_key} <button class="copy-btn" onclick="copyKey()">Copy</button>`;
+
+  if (chaserInfo.stream_type) {
+    document.getElementById('stype').value = chaserInfo.stream_type;
+    onStreamTypeChange();
+  }
+}
+
+// ── GPS ───────────────────────────────────────────────────────────────────────
+function toggleGPS() {
+  if (tracking) {
+    stopGPS();
+  } else {
+    startGPS();
+  }
+}
+
+function startGPS() {
+  if (!navigator.geolocation) {
+    return showMsg('gps-msg', 'Geolocation not supported on this device', 'err');
+  }
+  showMsg('gps-msg', 'Acquiring GPS signal...', 'ok');
+  tracking = true;
+  document.getElementById('gps-btn').textContent = '⏹ Stop GPS Tracking';
+  document.getElementById('gps-btn').className = 'btn btn-grey';
+
+  gpsInterval = setInterval(sendGPS, 4000); // ping every 4 seconds
+  sendGPS();
+}
+
+function stopGPS() {
+  clearInterval(gpsInterval);
+  tracking = false;
+  document.getElementById('gps-btn').textContent = 'Start GPS Tracking';
+  document.getElementById('gps-btn').className = 'btn btn-green';
+  showMsg('gps-msg', 'GPS tracking stopped', 'ok');
+}
+
+function sendGPS() {
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      const { latitude: lat, longitude: lng, heading, speed, altitude } = pos.coords;
+      lastLat = lat; lastLng = lng;
+      document.getElementById('gps-coords').textContent =
+        `📍 ${lat.toFixed(5)}, ${lng.toFixed(5)}` +
+        (speed ? ` | 🚗 ${(speed * 2.237).toFixed(0)} mph` : '') +
+        (heading ? ` | 🧭 ${heading.toFixed(0)}°` : '');
+
+      try {
+        await fetch(`${API}/gps`, {
+          method: 'POST',
+          headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ lat, lng, heading, speed: speed ? speed * 2.237 : null, altitude })
+        });
+        showMsg('gps-msg', `Last ping: ${new Date().toLocaleTimeString()}`, 'ok');
+      } catch(e) {
+        showMsg('gps-msg', 'GPS ping failed — check connection', 'err');
+      }
+    },
+    (err) => {
+      showMsg('gps-msg', `GPS error: ${err.message}`, 'err');
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
+
+// ── STREAM ────────────────────────────────────────────────────────────────────
+function onStreamTypeChange() {
+  const t = document.getElementById('stype').value;
+  document.getElementById('rtmp-section').style.display = t === 'rtmp' ? '' : 'none';
+  document.getElementById('ext-section').style.display  = t !== 'rtmp' ? '' : 'none';
+}
+
+function copyKey() {
+  navigator.clipboard.writeText(chaserInfo.stream_key).then(() => {
+    showMsg('stream-msg', 'Stream key copied!', 'ok');
+  });
+}
+
+async function saveExtUrl() {
+  const url = document.getElementById('ext-url').value.trim();
+  if (!url) return;
+  try {
+    const res = await fetch(`${API}/chaser/stream`, {
+      method: 'PATCH',
+      headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ external_url: url })
+    });
+    if (!res.ok) throw new Error();
+    showMsg('stream-msg', 'Stream URL saved! You will appear on the map when you go live.', 'ok');
+  } catch(e) {
+    showMsg('stream-msg', 'Failed to save URL', 'err');
+  }
+}
+
+async function setStatus(status) {
+  try {
+    const res = await fetch(`${API}/chaser/status`, {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ status })
+    });
+    if (!res.ok) throw new Error();
+    const dot = document.getElementById('live-dot');
+    const txt = document.getElementById('status-text');
+    if (status === 'streaming') {
+      dot.classList.add('live');
+      txt.textContent = '🔴 STREAMING';
+      showMsg('stream-msg', 'You are now marked as LIVE on the map!', 'ok');
+    } else {
+      dot.classList.remove('live');
+      txt.textContent = 'Offline';
+      showMsg('stream-msg', 'Marked as offline.', 'ok');
+    }
+  } catch(e) {
+    showMsg('stream-msg', 'Failed to update status', 'err');
+  }
+}
+
+// ── REPORTS ───────────────────────────────────────────────────────────────────
+async function submitReport() {
+  if (!lastLat || !lastLng) {
+    return showMsg('report-msg', 'Enable GPS first so we know your location', 'err');
+  }
+  const body = {
+    type: document.getElementById('rtype').value,
+    lat: lastLat,
+    lng: lastLng,
+    notes: document.getElementById('rnotes').value.trim(),
+    intensity: parseInt(document.getElementById('rintensity').value),
+  };
+  try {
+    const res = await fetch(`${API}/report`, {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) throw new Error();
+    document.getElementById('rnotes').value = '';
+    showMsg('report-msg', '✅ Report submitted and visible on the map!', 'ok');
+  } catch(e) {
+    showMsg('report-msg', 'Failed to submit report', 'err');
+  }
+}
+
+// ── UTILS ─────────────────────────────────────────────────────────────────────
+function showMsg(id, text, type) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.className = `msg ${type} show`;
+  setTimeout(() => el.classList.remove('show'), 5000);
+}
+</script>
+</body>
+</html>
