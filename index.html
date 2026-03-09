@@ -236,7 +236,7 @@ async function loadRadar() {
     const f = d.radar.past[d.radar.past.length - 1];
     if (radarLayer) map.removeLayer(radarLayer);
     radarLayer = L.tileLayer(`https://tilecache.rainviewer.com${f.path}/512/{z}/{x}/{y}/6/1_1.png`,
-      { opacity:.62, tileSize:512, zoomOffset:-1, maxNativeZoom:11 });
+      { opacity:.62, tileSize:512, zoomOffset:-1, maxNativeZoom:13 });
     if (radarVis) radarLayer.addTo(map);
   } catch(e) {}
 }
