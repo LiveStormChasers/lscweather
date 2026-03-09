@@ -40,7 +40,7 @@ body { font-family:'Source Sans 3',sans-serif; background:#111; height:100vh; ov
   animation:sn-pulse 1.8s ease-out infinite;
   pointer-events:none;
 }
-.ci-wrap { background:transparent !important; border:none !important; }
+.ci-wrap { background:transparent !important; border:none !important; box-shadow:none !important; outline:none !important; }
 
 /* TOP BAR */
 #topbar { position:absolute; top:9px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,.72); border:1px solid #444; border-radius:4px; padding:4px 14px; z-index:800; display:flex; align-items:center; gap:10px; font-size:12px; color:#ccc; backdrop-filter:blur(4px); white-space:nowrap; }
@@ -237,7 +237,7 @@ async function loadRadar() {
     if (radarLayer) map.removeLayer(radarLayer);
     radarLayer = L.tileLayer(
       `https://tilecache.rainviewer.com${f.path}/256/{z}/{x}/{y}/2/1_1.png`,
-      { opacity: 0.65, maxNativeZoom: 12, maxZoom: 18 }
+      { opacity: 0.65, maxNativeZoom: 6, maxZoom: 18 }
     );
     if (radarVis) radarLayer.addTo(map);
   } catch(e) {}
@@ -307,70 +307,70 @@ function toggleSat() {
 //  CHASER ICON  — circle + directional arrow, red=streaming, gray=GPS-only
 // ══════════════════════════════════════════════════════════════════════════════
 function makeChaserIcon(heading, streaming) {
-  const id = 'g' + Math.random().toString(36).slice(2,7);
-  // Rotate the whole icon so the pointer faces the heading direction
+  const id  = 'c' + Math.random().toString(36).slice(2,7);
   const rot = (heading && heading > 0) ? heading : 0;
 
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44" style="overflow:visible">
+  // Dome color: red when streaming, gray when GPS only
+  const domeTop = streaming ? '#ff5555' : '#aaaaaa';
+  const domeMid = streaming ? '#cc0000' : '#666666';
+  const domeBot = streaming ? '#7a0000' : '#333333';
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
     <defs>
-      <radialGradient id="${id}bg" cx="40%" cy="35%" r="60%">
-        <stop offset="0%" stop-color="#6a6a6a"/>
-        <stop offset="100%" stop-color="#222222"/>
+      <!-- Body gradient: dark charcoal sphere -->
+      <radialGradient id="${id}body" cx="38%" cy="30%" r="70%">
+        <stop offset="0%"   stop-color="#787878"/>
+        <stop offset="45%"  stop-color="#3a3a3a"/>
+        <stop offset="100%" stop-color="#111111"/>
       </radialGradient>
-      <radialGradient id="${id}rd" cx="35%" cy="30%" r="65%">
-        <stop offset="0%" stop-color="#ff4444"/>
-        <stop offset="50%" stop-color="#cc0000"/>
-        <stop offset="100%" stop-color="#880000"/>
+      <!-- Dome gradient: glossy red or gray -->
+      <radialGradient id="${id}dome" cx="35%" cy="28%" r="70%">
+        <stop offset="0%"   stop-color="${domeTop}"/>
+        <stop offset="55%"  stop-color="${domeMid}"/>
+        <stop offset="100%" stop-color="${domeBot}"/>
       </radialGradient>
-      <radialGradient id="${id}gr" cx="35%" cy="30%" r="65%">
-        <stop offset="0%" stop-color="#aaaaaa"/>
-        <stop offset="50%" stop-color="#666666"/>
-        <stop offset="100%" stop-color="#333333"/>
+      <!-- Dome shine -->
+      <radialGradient id="${id}shine" cx="30%" cy="25%" r="55%">
+        <stop offset="0%"   stop-color="white" stop-opacity="0.55"/>
+        <stop offset="100%" stop-color="white" stop-opacity="0"/>
       </radialGradient>
-      <filter id="${id}sh">
-        <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="rgba(0,0,0,0.7)"/>
-      </filter>
-      <filter id="${id}glow">
-        <feGaussianBlur stdDeviation="2" result="blur"/>
-        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-      </filter>
     </defs>
 
-    <!-- Rotate whole icon to heading -->
-    <g transform="rotate(${rot} 22 22)">
-      <!-- Directional pointer triangle (points up = north before rotation) -->
-      <polygon points="22,2 17,16 27,16"
-        fill="#1a1a1a" stroke="#111" stroke-width="1"
-        stroke-linejoin="round"/>
+    <!-- Rotate pointer + body together to face heading direction -->
+    <g transform="rotate(${rot} 24 24)">
 
-      <!-- Main circle body -->
-      <circle cx="22" cy="24" r="14"
-        fill="url(#${id}bg)" stroke="#111" stroke-width="1.5"
-        filter="url(#${id}sh)"/>
+      <!-- Directional pointer — dark triangle pointing UP (north) before rotation -->
+      <!-- Tip at top, base overlaps circle edge -->
+      <polygon points="24,3 19,20 29,20"
+        fill="#1c1c1c" stroke="#0a0a0a" stroke-width="0.5" stroke-linejoin="round"/>
 
-      <!-- Inner ring -->
-      <circle cx="22" cy="24" r="10"
-        fill="none" stroke="#111" stroke-width="1.5" opacity="0.6"/>
+      <!-- Outer dark ring (sphere edge) -->
+      <circle cx="24" cy="26" r="17" fill="#0d0d0d"/>
 
-      <!-- Center dome — red if streaming, gray if GPS only -->
-      <circle cx="22" cy="24" r="8"
-        fill="url(#${id}${streaming ? 'rd' : 'gr'})"/>
+      <!-- Main sphere body -->
+      <circle cx="24" cy="26" r="15.5" fill="url(#${id}body)"/>
 
-      <!-- Specular highlight on dome -->
-      <ellipse cx="19.5" cy="21" rx="3" ry="2"
-        fill="white" opacity="${streaming ? '0.35' : '0.2'}" transform="rotate(-20 19.5 21)"/>
+      <!-- Inner bezel ring -->
+      <circle cx="24" cy="26" r="11" fill="none" stroke="#111" stroke-width="1.5" opacity="0.7"/>
+
+      <!-- Dome -->
+      <circle cx="24" cy="26" r="9.5" fill="url(#${id}dome)"/>
+
+      <!-- Dome gloss shine -->
+      <circle cx="24" cy="26" r="9.5" fill="url(#${id}shine)"/>
+
     </g>
   </svg>`;
 
   const ring = streaming
-    ? `<div class="sn-ring" style="top:50%;margin-top:2px"></div>`
+    ? `<div class="sn-ring" style="top:50%;margin-top:2px;left:50%"></div>`
     : '';
 
   return L.divIcon({
     className: 'ci-wrap',
-    html: `<div style="position:relative;width:44px;height:44px">${ring}${svg}</div>`,
-    iconSize:   [44, 44],
-    iconAnchor: [22, 24],
+    html: `<div style="position:relative;width:48px;height:48px">${ring}${svg}</div>`,
+    iconSize:   [48, 48],
+    iconAnchor: [24, 26],
   });
 }
 
