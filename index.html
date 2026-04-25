@@ -132,6 +132,23 @@ td.cn { font-weight:600; }
 .ds-dot { width:8px; height:8px; border-radius:50%; background:#2db82d; flex-shrink:0; }
 .ds-dot.warn { background:#f5c518; }
 .ds-dot.err  { background:#e63333; }
+
+.preset-btn { background:#f0f0f0; border:1px solid #ddd; border-radius:3px; font-size:11px; font-family:'Source Sans 3',sans-serif; padding:3px 8px; cursor:pointer; color:#444; transition:all .12s; }
+.preset-btn:hover { background:#e0e0e0; color:#111; }
+
+/* LAYER TOGGLE SWITCH */
+.lyr-sw { position:relative; display:inline-block; width:36px; height:20px; flex-shrink:0; }
+.lyr-sw input { opacity:0; width:0; height:0; }
+.lyr-sw-track {
+  position:absolute; inset:0; background:#444; border-radius:20px; cursor:pointer;
+  transition:background .2s;
+}
+.lyr-sw-track::before {
+  content:''; position:absolute; width:14px; height:14px; left:3px; bottom:3px;
+  background:#fff; border-radius:50%; transition:transform .2s;
+}
+.lyr-sw input:checked + .lyr-sw-track { background:#2db82d; }
+.lyr-sw input:checked + .lyr-sw-track::before { transform:translateX(16px); }
 </style>
 </head>
 <body>
@@ -184,7 +201,40 @@ td.cn { font-weight:600; }
       <button onclick="toggleSettings()" style="background:none;border:none;font-size:18px;color:#999;cursor:pointer;line-height:1">×</button>
     </div>
 
-    <!-- State Borders -->
+    <!-- Map Style -->
+    <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Map Style</div>
+    <select id="map-style" onchange="changeMapStyle()" style="width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:3px;font-size:12px;font-family:'Source Sans 3',sans-serif;margin-bottom:14px;cursor:pointer">
+      <option value="voyager">Voyager (Default)</option>
+      <option value="positron">Positron (Light/Minimal)</option>
+      <option value="dark">Dark Matter (Night)</option>
+      <option value="osm">OpenStreetMap (Detailed)</option>
+    </select>
+
+    <!-- Base Map Appearance -->
+    <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Base Map Appearance</div>
+
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <label style="font-size:12px;color:#444;flex:1">Brightness <span id="base-brightness-val">82</span>%</label>
+      <input type="range" id="base-brightness" min="30" max="130" step="5" value="82"
+        oninput="document.getElementById('base-brightness-val').textContent=this.value; updateBaseMap()"
+        style="width:90px">
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <label style="font-size:12px;color:#444;flex:1">Saturation <span id="base-saturation-val">65</span>%</label>
+      <input type="range" id="base-saturation" min="0" max="200" step="5" value="65"
+        oninput="document.getElementById('base-saturation-val').textContent=this.value; updateBaseMap()"
+        style="width:90px">
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <label style="font-size:12px;color:#444;flex:1">Hue Shift <span id="base-hue-val">0</span>°</label>
+      <input type="range" id="base-hue" min="-180" max="180" step="5" value="0"
+        oninput="document.getElementById('base-hue-val').textContent=this.value; updateBaseMap()"
+        style="width:90px">
+    </div>
+
+    <div style="font-size:10px;color:#aaa;margin-bottom:14px;line-height:1.4">
+      ⚠ For individual road layer control (color per road type), the map needs to be migrated to the same Mapbox GL engine as your other project.
+    </div>
     <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">State Borders</div>
 
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
@@ -231,119 +281,171 @@ td.cn { font-weight:600; }
         style="width:90px">
     </div>
 
-    <!-- Map Labels (CartoDB tile) -->
+    <!-- Map Labels -->
     <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Map Labels</div>
 
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
       <label style="font-size:12px;color:#444;flex:1">Show Labels</label>
       <input type="checkbox" id="label-toggle" onchange="toggleLabels()" checked
         style="width:16px;height:16px;cursor:pointer">
     </div>
 
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
-      <label style="font-size:12px;color:#444;flex:1">Opacity <span id="label-opacity-val">100</span>%</label>
-      <input type="range" id="label-opacity" min="0" max="100" step="10" value="100"
-        oninput="document.getElementById('label-opacity-val').textContent=this.value; updateLabels()"
-        style="width:90px">
-    </div>
-
-    <!-- Custom City Labels -->
-    <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">City Labels</div>
-
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-      <label style="font-size:12px;color:#444;flex:1">Show Cities</label>
-      <input type="checkbox" id="city-toggle" onchange="toggleCityLabels()"
-        style="width:16px;height:16px;cursor:pointer">
-    </div>
-
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-      <label style="font-size:12px;color:#444;flex:1">Text Color</label>
-      <input type="color" id="city-color" value="#222222"
-        oninput="updateCityLabels()"
+    <!-- Color picker — directly sets label color -->
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <label style="font-size:12px;color:#444;flex:1">Label Color</label>
+      <input type="color" id="label-color" value="#ffffff"
+        oninput="updateLabelFilter()"
         style="width:36px;height:26px;border:1px solid #ddd;border-radius:3px;cursor:pointer;padding:1px">
     </div>
 
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-      <label style="font-size:12px;color:#444;flex:1">Size <span id="city-size-val">12</span>px</label>
-      <input type="range" id="city-size" min="9" max="20" step="1" value="12"
-        oninput="document.getElementById('city-size-val').textContent=this.value; updateCityLabels()"
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <label style="font-size:12px;color:#444;flex:1">Brightness <span id="label-bright-val">100</span>%</label>
+      <input type="range" id="label-bright" min="20" max="300" step="5" value="100"
+        oninput="document.getElementById('label-bright-val').textContent=this.value; updateLabelFilter()"
         style="width:90px">
     </div>
 
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <label style="font-size:12px;color:#444;flex:1">Opacity <span id="label-opacity-val">100</span>%</label>
+      <input type="range" id="label-opacity" min="0" max="100" step="5" value="100"
+        oninput="document.getElementById('label-opacity-val').textContent=this.value; updateLabelFilter()"
+        style="width:90px">
+    </div>
+
+    <!-- Quick color presets -->
+    <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">Quick Colors</div>
+    <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:14px">
+      <button onclick="setLabelColor('#ffffff')" class="preset-btn" style="background:#333;color:#fff">White</button>
+      <button onclick="setLabelColor('#111111')" class="preset-btn">Black</button>
+      <button onclick="setLabelColor('#ffdd44')" class="preset-btn" style="background:#ffdd44">Yellow</button>
+      <button onclick="setLabelColor('#44aaff')" class="preset-btn" style="background:#44aaff;color:#fff">Blue</button>
+      <button onclick="setLabelColor('#ff6644')" class="preset-btn" style="background:#ff6644;color:#fff">Orange</button>
+      <button onclick="setLabelColor('#44ff88')" class="preset-btn" style="background:#44ff88">Green</button>
+      <button onclick="setLabelColor('#ff44aa')" class="preset-btn" style="background:#ff44aa;color:#fff">Pink</button>
+      <button onclick="setLabelColor('#cc44ff')" class="preset-btn" style="background:#cc44ff;color:#fff">Purple</button>
+    </div>
+
+    <!-- Label Outline -->
+    <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Label Outline</div>
+
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-      <label style="font-size:12px;color:#444;flex:1">Pill Background</label>
-      <input type="checkbox" id="city-pill" onchange="updateCityLabels()"
+      <label style="font-size:12px;color:#444;flex:1">Show Outline</label>
+      <input type="checkbox" id="label-outline" onchange="updateLabelFilter()"
         style="width:16px;height:16px;cursor:pointer">
     </div>
 
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-      <label style="font-size:12px;color:#444;flex:1">Pill Color</label>
-      <input type="color" id="city-pill-color" value="#ffffff"
-        oninput="updateCityLabels()"
+      <label style="font-size:12px;color:#444;flex:1">Outline Color</label>
+      <input type="color" id="label-outline-color" value="#000000"
+        oninput="updateLabelFilter()"
+        style="width:36px;height:26px;border:1px solid #ddd;border-radius:3px;cursor:pointer;padding:1px">
+    </div>
+
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <label style="font-size:12px;color:#444;flex:1">Thickness <span id="label-outline-size-val">1</span>px</label>
+      <input type="range" id="label-outline-size" min="1" max="5" step="1" value="1"
+        oninput="document.getElementById('label-outline-size-val').textContent=this.value; updateLabelFilter()"
+        style="width:90px">
+    </div>
+
+    <!-- Label Glow / Pill Halo -->
+    <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Label Glow / Halo</div>
+    <div style="font-size:10px;color:#aaa;margin-bottom:8px;line-height:1.4">Creates a soft colored glow behind each label — closest to a pill effect possible with raster tiles.</div>
+
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <label style="font-size:12px;color:#444;flex:1">Show Glow</label>
+      <input type="checkbox" id="label-glow" onchange="updateLabelFilter()"
+        style="width:16px;height:16px;cursor:pointer">
+    </div>
+
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <label style="font-size:12px;color:#444;flex:1">Glow Color</label>
+      <input type="color" id="label-glow-color" value="#000000"
+        oninput="updateLabelFilter()"
         style="width:36px;height:26px;border:1px solid #ddd;border-radius:3px;cursor:pointer;padding:1px">
     </div>
 
     <div style="display:flex;align-items:center;gap:10px">
-      <label style="font-size:12px;color:#444;flex:1">Pill Opacity <span id="city-pill-opacity-val">70</span>%</label>
-      <input type="range" id="city-pill-opacity" min="10" max="100" step="5" value="70"
-        oninput="document.getElementById('city-pill-opacity-val').textContent=this.value; updateCityLabels()"
+      <label style="font-size:12px;color:#444;flex:1">Spread <span id="label-glow-size-val">4</span>px</label>
+      <input type="range" id="label-glow-size" min="2" max="20" step="1" value="4"
+        oninput="document.getElementById('label-glow-size-val').textContent=this.value; updateLabelFilter()"
         style="width:90px">
     </div>
   </div>
 
-  <!-- DATA STATUS PILL -->
-  <div id="data-pill" style="
-    position:absolute; bottom:38px; right:12px;
-    background:#1a1a1a; border:1px solid #333; border-radius:20px;
-    padding:6px 14px; z-index:800; display:flex; align-items:center; gap:8px;
-    cursor:pointer; user-select:none; box-shadow:0 2px 8px rgba(0,0,0,.4);
-    font-family:'Source Sans 3',sans-serif;
-  " onclick="toggleDataStatus()">
-    <div id="pill-dot" style="width:8px;height:8px;border-radius:50%;background:#2db82d;flex-shrink:0"></div>
-    <span style="color:#fff;font-size:12px;font-weight:600;letter-spacing:.5px">DATA STATUS</span>
-    <span id="pill-chevron" style="color:#888;font-size:10px">▲</span>
-  </div>
+  <!-- HAMBURGER LAYER MENU — anchored below zoom controls (top-left) -->
+  <div id="lyr-hamburger" style="
+    position:absolute; top:82px; left:10px;
+    background:#fff; border:2px solid rgba(0,0,0,.3); border-radius:4px;
+    width:30px; height:30px; display:flex; align-items:center; justify-content:center;
+    cursor:pointer; z-index:801; box-shadow:0 1px 5px rgba(0,0,0,.35);
+    font-size:15px; user-select:none;
+  " onclick="toggleLayerMenu()" title="Layer Toggles">☰</div>
 
-  <!-- DATA STATUS DROPDOWN -->
-  <div id="data-status-drop" style="
-    position:absolute; bottom:72px; right:12px;
-    background:#1a1a1a; border:1px solid #333; border-radius:8px;
-    padding:12px 16px; z-index:800; min-width:220px;
-    box-shadow:0 4px 16px rgba(0,0,0,.5);
+  <!-- LAYER TOGGLES DROPDOWN — opens below hamburger -->
+  <div id="lyr-menu" style="
+    display:none; position:absolute; top:116px; left:10px;
+    background:#1a1a1a; border:1px solid #444; border-radius:6px;
+    padding:12px 14px; z-index:800; min-width:230px;
+    box-shadow:0 4px 16px rgba(0,0,0,.6);
     font-family:'Source Sans 3',sans-serif;
   ">
-    <div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Data Sources</div>
-    <div class="ds-row" id="ds-sn">
-      <div class="ds-dot" id="ds-sn-dot"></div>
-      <div>
-        <div style="color:#fff;font-size:12px;font-weight:600">SpotterNetwork GPS</div>
-        <div style="color:#666;font-size:11px" id="ds-sn-txt">Checking...</div>
+    <div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Layer Toggles</div>
+
+    <!-- Tornado Warnings -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:12px;height:12px;background:#e63333;border-radius:2px;flex-shrink:0"></div>
+        <span style="color:#fff;font-size:12px;font-weight:600">Tornado Warnings</span>
       </div>
+      <label class="lyr-sw">
+        <input type="checkbox" id="lyr-tor-warn" checked onchange="toggleLayer('tor-warn',this.checked)">
+        <span class="lyr-sw-track"></span>
+      </label>
     </div>
-    <div class="ds-row" id="ds-radar">
-      <div class="ds-dot" id="ds-radar-dot"></div>
-      <div>
-        <div style="color:#fff;font-size:12px;font-weight:600">RainViewer Radar</div>
-        <div style="color:#666;font-size:11px" id="ds-radar-txt">Checking...</div>
+
+    <!-- Tornado Watches -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:12px;height:12px;border:2px dashed #ff9900;border-radius:2px;flex-shrink:0"></div>
+        <span style="color:#fff;font-size:12px;font-weight:600">Tornado Watches</span>
       </div>
+      <label class="lyr-sw">
+        <input type="checkbox" id="lyr-tor-watch" checked onchange="toggleLayer('tor-watch',this.checked)">
+        <span class="lyr-sw-track"></span>
+      </label>
     </div>
-    <div class="ds-row" id="ds-noaa">
-      <div class="ds-dot" id="ds-noaa-dot"></div>
-      <div>
-        <div style="color:#fff;font-size:12px;font-weight:600">NOAA Warnings</div>
-        <div style="color:#666;font-size:11px" id="ds-noaa-txt">Checking...</div>
+
+    <!-- Severe Thunderstorm Warnings -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:12px;height:12px;background:#f5c518;border-radius:2px;flex-shrink:0"></div>
+        <span style="color:#fff;font-size:12px;font-weight:600">Svr. T-Storm Warnings</span>
       </div>
+      <label class="lyr-sw">
+        <input type="checkbox" id="lyr-svr-warn" checked onchange="toggleLayer('svr-warn',this.checked)">
+        <span class="lyr-sw-track"></span>
+      </label>
     </div>
-    <div class="ds-row" id="ds-yt">
-      <div class="ds-dot" id="ds-yt-dot"></div>
-      <div>
-        <div style="color:#fff;font-size:12px;font-weight:600">YouTube Live</div>
-        <div style="color:#666;font-size:11px" id="ds-yt-txt">Checking...</div>
+
+    <!-- Severe Weather Watches -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:12px;height:12px;border:2px dashed #f5c518;border-radius:2px;flex-shrink:0"></div>
+        <span style="color:#fff;font-size:12px;font-weight:600">Severe Weather Watches</span>
       </div>
+      <label class="lyr-sw">
+        <input type="checkbox" id="lyr-svr-watch" checked onchange="toggleLayer('svr-watch',this.checked)">
+        <span class="lyr-sw-track"></span>
+      </label>
     </div>
+
+    <div style="border-top:1px solid #333;margin:10px 0"></div>
+    <div style="font-size:10px;color:#555;text-align:center" id="warn-count">Loading warnings...</div>
   </div>
 
-  <div id="rl" style="bottom:110px">
+  <!-- RADAR LEGEND — bottom right, no overlap -->
+  <div id="rl" style="bottom:38px">
     <div class="rlt">Radar Reflectivity (dBZ)</div>
     <div class="rlb"></div>
     <div class="rll"><span>Light</span><span>Moderate</span><span>Heavy</span><span>Extreme</span></div>
@@ -438,9 +540,7 @@ const ytLiveState = {}; // { 'Joshua Napper': { url, viewers } } or empty
 // ── MAP ───────────────────────────────────────────────────────────────────────
 const map = L.map('map', { zoomControl:true, attributionControl:false }).setView([38.5,-97.0], 5);
 
-// Base map WITHOUT labels
-L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}.png',
-  { maxZoom:18, opacity:.9 }).addTo(map);
+// Base map managed dynamically by changeMapStyle() — see MAP_STYLES below
 
 // ── CUSTOM PANES (z-index stack) ──────────────────────────────────────────────
 // tilePane default = 200 (base + radar)
@@ -449,6 +549,27 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/
 // cityPane         = 460 (custom city label divIcons — fully customizable)
 // overlayPane      = 400 (NOAA warning polygons — between borders and labels)
 // markerPane       = 600 (chaser markers — always on top)
+
+// Z-INDEX STACK:
+// warnFillPane  z210  → warning polygon fills (semi-transparent)
+// radarPane     z230  → radar tiles (ABOVE fills, BELOW outlines)
+// warnLinePane  z250  → warning polygon outlines
+// bordersPane   z350  → state/county GeoJSON lines
+// labelsPane    z450  → CartoDB labels tile
+// cityPane      z460  → custom city label divIcons
+// markerPane    z600  → chaser markers (Leaflet default)
+
+map.createPane('warnFillPane');
+map.getPane('warnFillPane').style.zIndex = 210;
+map.getPane('warnFillPane').style.pointerEvents = 'none';
+
+map.createPane('radarPane');
+map.getPane('radarPane').style.zIndex = 230;
+map.getPane('radarPane').style.pointerEvents = 'none';
+
+map.createPane('warnLinePane');
+map.getPane('warnLinePane').style.zIndex = 250;
+map.getPane('warnLinePane').style.pointerEvents = 'none';
 
 map.createPane('bordersPane');
 map.getPane('bordersPane').style.zIndex = 350;
@@ -462,7 +583,83 @@ map.createPane('cityPane');
 map.getPane('cityPane').style.zIndex = 460;
 map.getPane('cityPane').style.pointerEvents = 'none';
 
-// ── STATE & COUNTY BORDERS ────────────────────────────────────────────────────
+// ── MAP STYLE PRESETS ─────────────────────────────────────────────────────────
+let baseTileLayer = null;
+
+const MAP_STYLES = {
+  voyager: {
+    base:   'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}.png',
+    labels: 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_only_labels/{z}/{x}/{y}.png',
+    brightness: 82, saturation: 65,
+  },
+  positron: {
+    base:   'https://{s}.basemaps.cartocdn.com/rastertiles/light_nolabels/{z}/{x}/{y}.png',
+    labels: 'https://{s}.basemaps.cartocdn.com/rastertiles/light_only_labels/{z}/{x}/{y}.png',
+    brightness: 95, saturation: 40,
+  },
+  dark: {
+    base:   'https://{s}.basemaps.cartocdn.com/rastertiles/dark_nolabels/{z}/{x}/{y}.png',
+    labels: 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_only_labels/{z}/{x}/{y}.png',
+    brightness: 100, saturation: 80,
+  },
+  osm: {
+    base:   'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    labels: null, // OSM has labels built in
+    brightness: 80, saturation: 60,
+  },
+};
+
+// Track base layer separately so we can swap it
+baseTileLayer = L.tileLayer(MAP_STYLES.voyager.base, { maxZoom:18, opacity:.9 }).addTo(map);
+
+function changeMapStyle() {
+  const style = MAP_STYLES[document.getElementById('map-style').value];
+  if (!style) return;
+
+  // Swap base tile
+  if (baseTileLayer) map.removeLayer(baseTileLayer);
+  baseTileLayer = L.tileLayer(style.base, { maxZoom:18, opacity:.9 });
+  baseTileLayer.addTo(map);
+  baseTileLayer.bringToBack();
+
+  // Swap labels tile if style has one
+  if (style.labels) {
+    map.removeLayer(labelsLayer);
+    labelsLayer._url = style.labels;
+    if (document.getElementById('label-toggle').checked && !cityLabelsVisible) {
+      labelsLayer.setUrl(style.labels);
+      labelsLayer.addTo(map);
+    }
+  }
+
+  // Update brightness/saturation defaults for this style
+  document.getElementById('base-brightness').value = style.brightness;
+  document.getElementById('base-brightness-val').textContent = style.brightness;
+  document.getElementById('base-saturation').value = style.saturation;
+  document.getElementById('base-saturation-val').textContent = style.saturation;
+  updateBaseMap();
+}
+
+function updateBaseMap() {
+  const brightness = parseFloat(document.getElementById('base-brightness').value) / 100;
+  const saturation = parseFloat(document.getElementById('base-saturation').value) / 100;
+  const hue        = parseFloat(document.getElementById('base-hue').value);
+  // Apply filter to the tile pane (affects base + radar)
+  const tilePanes = document.querySelectorAll('.leaflet-tile-pane');
+  tilePanes.forEach(p => {
+    p.style.filter = `brightness(${brightness}) saturate(${saturation}) hue-rotate(${hue}deg)`;
+  });
+}
+
+// Apply initial base map filter
+updateBaseMap();
+
+// Apply initial label filter (white labels by default)
+setTimeout(() => updateLabelFilter(), 500);
+
+// Remove the old static base tile (it was added before this block)
+
+
 let stateLayer = null, countyLayer = null;
 let countyData = null;
 
@@ -514,174 +711,146 @@ async function toggleCounties() {
 
 // ── LABELS TILE (CartoDB — roads, POI — now in labelsPane ABOVE bordersPane) ──
 const labelsLayer = L.tileLayer(
-  'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}.png',
+  'https://{s}.basemaps.cartocdn.com/rastertiles/dark_only_labels/{z}/{x}/{y}.png',
   { maxZoom:18, opacity:1, pane: 'labelsPane' }  // pane: 'labelsPane' is the KEY fix
 ).addTo(map);
 
-function updateLabels() {
-  const opacity = parseFloat(document.getElementById('label-opacity').value) / 100;
-  labelsLayer.setOpacity(opacity);
+function updateLabels() { updateLabelFilter(); } // kept for compatibility
+
+// Convert any hex color to a CSS filter that tints white label pixels to that color.
+// Works because dark_only_labels tile renders labels as WHITE on transparent.
+// Algorithm: white → sepia (warm orange) → hue-rotate + saturate → target hue + saturation
+function hexToLabelFilter(hex) {
+  if (!hex || hex === '#ffffff') return ''; // white = no filter
+  if (hex === '#000000') return 'brightness(0)';
+
+  // Parse hex to RGB
+  const r = parseInt(hex.slice(1,3), 16) / 255;
+  const g = parseInt(hex.slice(3,5), 16) / 255;
+  const b = parseInt(hex.slice(5,7), 16) / 255;
+
+  // Convert RGB to HSL
+  const max = Math.max(r,g,b), min = Math.min(r,g,b);
+  let h = 0, s = 0, l = (max + min) / 2;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch(max) {
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+      case g: h = ((b - r) / d + 2) / 6; break;
+      case b: h = ((r - g) / d + 4) / 6; break;
+    }
+  }
+  const hDeg = Math.round(h * 360);
+  const sPct = Math.round(s * 100);
+  const lPct = Math.round(l * 100);
+
+  // sepia(1) shifts white → ~hue 30°, high sat, ~40% lightness
+  // hue-rotate(target - 30) to reach target hue
+  const hRotate = hDeg - 30;
+  // saturate factor: sepia gives ~90%, we want sPct
+  const saturate = sPct > 0 ? Math.round((sPct / 90) * 100 * 3) : 0;
+  // brightness: sepia gives ~40% lightness, adjust to target lightness
+  const bright = lPct > 0 ? (lPct / 40).toFixed(2) : 0.1;
+
+  if (sPct < 5) {
+    // Near-gray: just use brightness
+    return `brightness(0) invert(1) brightness(${(lPct/100).toFixed(2)})`;
+  }
+
+  return `sepia(1) hue-rotate(${hRotate}deg) saturate(${saturate}%) brightness(${bright})`;
 }
+
+function updateLabelFilter() {
+  const pane = map.getPane('labelsPane');
+  if (!pane) return;
+  const color   = document.getElementById('label-color')?.value   || '#ffffff';
+  const bright  = (document.getElementById('label-bright')?.value  || 100) / 100;
+  const opacity = (document.getElementById('label-opacity')?.value || 100) / 100;
+
+  // Build outline drop-shadows (applied per-pixel edge = true text outline)
+  let outlineShadows = '';
+  if (document.getElementById('label-outline')?.checked) {
+    const oc  = document.getElementById('label-outline-color')?.value || '#000000';
+    const os  = parseInt(document.getElementById('label-outline-size')?.value || 1);
+    // Create outline by stacking drop-shadows at all 8 directions
+    const dirs = [];
+    for (let x = -os; x <= os; x++) {
+      for (let y = -os; y <= os; y++) {
+        if (x === 0 && y === 0) continue;
+        dirs.push(`drop-shadow(${x}px ${y}px 0 ${oc})`);
+      }
+    }
+    outlineShadows = dirs.join(' ');
+  }
+
+  // Build glow (soft spread behind each label — closest to pill on raster tiles)
+  let glowShadow = '';
+  if (document.getElementById('label-glow')?.checked) {
+    const gc = document.getElementById('label-glow-color')?.value || '#000000';
+    const gs = parseInt(document.getElementById('label-glow-size')?.value || 4);
+    // Stack multiple glow passes for a solid halo effect
+    glowShadow = [
+      `drop-shadow(0 0 ${gs}px ${gc})`,
+      `drop-shadow(0 0 ${Math.round(gs*0.6)}px ${gc})`,
+      `drop-shadow(0 0 ${Math.round(gs*0.3)}px ${gc})`,
+    ].join(' ');
+  }
+
+  const colorFilter = hexToLabelFilter(color);
+  // Order: outline first (so it's behind), then glow, then color, then brightness
+  pane.style.filter  = [outlineShadows, glowShadow, colorFilter, `brightness(${bright})`]
+    .filter(Boolean).join(' ').trim();
+  pane.style.opacity = opacity;
+}
+
+function setLabelColor(hex) {
+  const el = document.getElementById('label-color');
+  if (el) { el.value = hex; updateLabelFilter(); }
+}
+
+// Kept for preset compatibility
+const LABEL_PRESETS = {};
+function applyLabelPreset() {}
+
 function toggleLabels() {
   const show = document.getElementById('label-toggle').checked;
   show ? labelsLayer.addTo(map) : map.removeLayer(labelsLayer);
-  document.getElementById('label-opacity').disabled = !show;
 }
 
 // ── CUSTOM CITY LABELS ────────────────────────────────────────────────────────
 // Full CSS control: color, size, pill background, opacity
 // Cities are filtered by zoom level using population tiers
 // [name, lat, lng, minZoom]  minZoom = minimum map zoom to show this city
-const CITY_DATA = [
-  // Tier 1 — major metros (show from zoom 4)
-  ['New York',40.7128,-74.006,4],['Los Angeles',34.0522,-118.2437,4],
-  ['Chicago',41.8781,-87.6298,4],['Houston',29.7604,-95.3698,4],
-  ['Phoenix',33.4484,-112.074,4],['Philadelphia',39.9526,-75.1652,4],
-  ['San Antonio',29.4241,-98.4936,4],['San Diego',32.7157,-117.1611,4],
-  ['Dallas',32.7767,-96.797,4],['Seattle',47.6062,-122.3321,4],
-  ['Denver',39.7392,-104.9903,4],['Washington DC',38.9072,-77.0369,4],
-  ['Nashville',36.1627,-86.7816,4],['Oklahoma City',35.4676,-97.5164,4],
-  ['El Paso',31.7619,-106.485,4],['Las Vegas',36.1699,-115.1398,4],
-  ['Louisville',38.2527,-85.7585,4],['Memphis',35.1495,-90.0490,4],
-  ['Baltimore',39.2904,-76.6122,4],['Milwaukee',43.0389,-87.9065,4],
-  ['Albuquerque',35.0844,-106.6504,4],['Tucson',32.2226,-110.9747,4],
-  ['Fresno',36.7378,-119.7871,4],['Mesa',33.4152,-111.8315,4],
-  ['Atlanta',33.749,-84.388,4],['Kansas City',39.0997,-94.5786,4],
-  ['Minneapolis',44.9778,-93.265,4],['Omaha',41.2565,-95.9345,4],
-  ['Miami',25.7617,-80.1918,4],['Raleigh',35.7796,-78.6382,4],
-  ['Cleveland',41.4993,-81.6944,4],['Tulsa',36.154,-95.9928,4],
-  ['New Orleans',29.9511,-90.0715,4],['Tampa',27.9506,-82.4572,4],
-  ['Wichita',37.6872,-97.3301,4],['Portland',45.5051,-122.675,4],
-  ['Colorado Springs',38.8339,-104.8214,4],['St. Louis',38.627,-90.1994,4],
-  ['Austin',30.2672,-97.7431,4],['Indianapolis',39.7684,-86.1581,4],
-  ['Charlotte',35.2271,-80.8431,4],['San Jose',37.3382,-121.8863,4],
-  ['San Francisco',37.7749,-122.4194,4],['Sacramento',38.5816,-121.4944,4],
-  ['Salt Lake City',40.7608,-111.891,4],['Baton Rouge',30.4515,-91.1871,5],
-  ['Little Rock',34.7465,-92.2896,5],['Jackson',32.2988,-90.1848,5],
-  ['Birmingham',33.5186,-86.8104,5],['Richmond',37.5407,-77.436,5],
-  ['Chattanooga',35.0456,-85.3097,5],['Knoxville',35.9606,-83.9207,5],
-  ['Des Moines',41.5868,-93.625,5],['Springfield',37.2153,-93.2982,5],
-  ['Madison',43.0731,-89.4012,5],['Lubbock',33.5779,-101.8552,5],
-  ['Amarillo',35.2219,-101.8313,5],['Shreveport',32.5252,-93.7502,5],
-  ['Tallahassee',30.4518,-84.2807,5],['Mobile',30.6954,-88.0399,5],
-  ['Huntsville',34.7304,-86.5861,5],['Montgomery',32.3668,-86.2999,5],
-  ['Columbus',39.9612,-82.9988,5],['Dayton',39.7589,-84.1916,5],
-  ['Akron',41.0814,-81.5190,5],['Pittsburgh',40.4406,-79.9959,5],
-  ['Buffalo',42.8864,-78.8784,5],['Rochester',43.1566,-77.6088,5],
-  ['Hartford',41.7658,-72.6851,5],['Providence',41.824,-71.4128,5],
-  ['Orlando',28.5383,-81.3792,5],['Jacksonville',30.3322,-81.6557,5],
-  ['Fayetteville',36.0626,-94.1574,6],['Topeka',39.0558,-95.6890,6],
-  ['Lincoln',40.8136,-96.7026,6],['Sioux Falls',43.5446,-96.7311,6],
-  ['Bismarck',46.8083,-100.7837,6],['Fargo',46.8772,-96.7898,6],
-  ['Rapid City',44.0805,-103.2310,6],['Casper',42.8666,-106.3131,6],
-  ['Billings',45.7833,-108.5007,6],['Missoula',46.8787,-114.0099,6],
-  ['Boise',43.615,-116.2023,6],['Spokane',47.6588,-117.426,6],
-  ['Eugene',44.0521,-123.0868,6],['Medford',42.3265,-122.8756,6],
-  ['Flagstaff',35.1983,-111.6513,6],['Yuma',32.6927,-114.6277,6],
-  ['Corpus Christi',27.8006,-97.3964,6],['Midland',31.9974,-102.0779,6],
-  ['Odessa',31.8457,-102.3676,6],['Abilene',32.4487,-99.7331,6],
-  ['Tyler',32.3513,-95.3011,6],['Beaumont',30.086,-94.1018,6],
-  ['Killeen',31.1171,-97.7278,6],['Waco',31.5493,-97.1467,6],
-  ['Laredo',27.5036,-99.5075,6],['McAllen',26.2034,-98.2300,6],
-];
 
-let cityMarkers = [];
-let cityLabelsVisible = false;
 
-function getCityLabelStyle() {
-  const color      = document.getElementById('city-color')?.value || '#333333';
-  const size       = document.getElementById('city-size')?.value || 12;
-  const pillOn     = document.getElementById('city-pill')?.checked || false;
-  const pillColor  = document.getElementById('city-pill-color')?.value || '#ffffff';
-  const pillOpac   = parseFloat(document.getElementById('city-pill-opacity')?.value || 70) / 100;
-  const r = parseInt(pillColor.slice(1,3),16);
-  const g = parseInt(pillColor.slice(3,5),16);
-  const b = parseInt(pillColor.slice(5,7),16);
-  return { color, size, bg: pillOn ? `rgba(${r},${g},${b},${pillOpac})` : 'transparent', pad: pillOn ? '2px 7px' : '0' };
-}
-
-function makeCityLabel(name, lat, lng) {
-  const st = getCityLabelStyle();
-  const div = document.createElement('div');
-  div.style.cssText = `
-    color:${st.color}; font-size:${st.size}px; font-weight:600;
-    font-family:'Source Sans 3',sans-serif; white-space:nowrap;
-    background:${st.bg}; padding:${st.pad}; border-radius:10px;
-    pointer-events:none; line-height:1.3;
-    text-shadow:0 1px 3px rgba(255,255,255,0.7),0 -1px 3px rgba(255,255,255,0.7);
-  `;
-  div.textContent = name;
-  return L.marker([lat, lng], {
-    icon: L.divIcon({ html: div, className: '', iconSize: null, iconAnchor: [0, 0] }),
-    pane: 'cityPane',
-    interactive: false
-  });
-}
-
-function renderCityLabels() {
-  if (!cityLabelsVisible) return;
-  const z = map.getZoom();
-  // Remove all existing city markers
-  cityMarkers.forEach(m => map.removeLayer(m));
-  cityMarkers = [];
-  // Add cities appropriate for current zoom
-  CITY_DATA.forEach(([name, lat, lng, minZoom]) => {
-    if (z >= minZoom) {
-      cityMarkers.push(makeCityLabel(name, lat, lng).addTo(map));
-    }
-  });
-}
-
-function toggleCityLabels() {
-  cityLabelsVisible = document.getElementById('city-toggle').checked;
-  if (!cityLabelsVisible) {
-    cityMarkers.forEach(m => map.removeLayer(m));
-    cityMarkers = [];
-  } else {
-    renderCityLabels();
-  }
-}
-
-function updateCityLabels() {
-  // Re-render all existing markers with new style
-  if (!cityLabelsVisible) return;
-  const z = map.getZoom();
-  cityMarkers.forEach(m => map.removeLayer(m));
-  cityMarkers = [];
-  CITY_DATA.forEach(([name, lat, lng, minZoom]) => {
-    if (z >= minZoom) cityMarkers.push(makeCityLabel(name, lat, lng).addTo(map));
-  });
-}
-
-// Re-render city labels on zoom change
-map.on('zoomend', renderCityLabels);
 
 function toggleSettings() {
   const p = document.getElementById('settings-panel');
   p.style.display = p.style.display === 'none' ? 'block' : 'none';
 }
 
-// ── DATA STATUS PILL ──────────────────────────────────────────────────────────
-let pillOpen = true;
-document.getElementById('data-status-drop').style.display = 'block';
-
-function toggleDataStatus() {
-  pillOpen = !pillOpen;
-  document.getElementById('data-status-drop').style.display = pillOpen ? 'block' : 'none';
-  document.getElementById('pill-chevron').textContent = pillOpen ? '▲' : '▼';
+// ── HAMBURGER LAYER MENU ──────────────────────────────────────────────────────
+let layerMenuOpen = false;
+function toggleLayerMenu() {
+  layerMenuOpen = !layerMenuOpen;
+  document.getElementById('lyr-menu').style.display = layerMenuOpen ? 'block' : 'none';
+  document.getElementById('lyr-hamburger').style.background = layerMenuOpen ? '#f0f0f0' : '#fff';
 }
+// Close when clicking outside
+document.addEventListener('click', e => {
+  if (layerMenuOpen &&
+      !document.getElementById('lyr-menu').contains(e.target) &&
+      !document.getElementById('lyr-hamburger').contains(e.target)) {
+    layerMenuOpen = false;
+    document.getElementById('lyr-menu').style.display = 'none';
+    document.getElementById('lyr-hamburger').style.background = '#fff';
+  }
+});
 
-function setDataStatus(id, ok, msg) {
-  const dot = document.getElementById(`ds-${id}-dot`);
-  const txt = document.getElementById(`ds-${id}-txt`);
-  if (!dot || !txt) return;
-  dot.className = 'ds-dot' + (ok === true ? '' : ok === false ? ' err' : ' warn');
-  txt.textContent = msg;
-  const allDots = [...document.querySelectorAll('.ds-dot')];
-  const hasErr  = allDots.some(d => d.classList.contains('err'));
-  const hasWarn = allDots.some(d => d.classList.contains('warn'));
-  document.getElementById('pill-dot').style.background = hasErr ? '#e63333' : hasWarn ? '#f5c518' : '#2db82d';
-}
+// Stub out old pill functions so nothing breaks
+function toggleDataStatus() {}
+function setDataStatus() {}
 
 loadStateBorders();
 
@@ -694,7 +863,7 @@ async function loadRadar() {
     if (radarLayer) map.removeLayer(radarLayer);
     radarLayer = L.tileLayer(
       `https://tilecache.rainviewer.com${f.path}/256/{z}/{x}/{y}/2/1_1.png`,
-      { opacity: 0.65, maxNativeZoom: 6, maxZoom: 18 }
+      { opacity: 0.65, maxNativeZoom: 6, maxZoom: 18, pane: 'radarPane' }
     );
     if (radarVis) radarLayer.addTo(map);
     setDataStatus('radar', true, `Updated ${new Date().toLocaleTimeString()}`);
@@ -711,42 +880,116 @@ function toggleRadar() {
 }
 
 // ── WARNINGS ─────────────────────────────────────────────────────────────────
-let warnLayers = [], warnVis = true;
+// ── WARNING LAYER SYSTEM ─────────────────────────────────────────────────────
+// Each warning type has its own visibility toggle.
+// Each warning renders as TWO separate layers:
+//   1. FILL polygon  → warnFillPane (z210) — radar sits above this (z230)
+//   2. LINE polygon  → warnLinePane (z250) — outlines sit above radar
+// This creates the visual: fill → radar → outline stacking
+
 const WSTYLE = {
-  'Tornado Warning':             { c:'#e63333', f:'rgba(230,51,51,.22)',  d:null  },
-  'Severe Thunderstorm Warning': { c:'#f5c518', f:'rgba(245,197,24,.15)', d:'6,4' },
-  'Tornado Watch':               { c:'#ff9900', f:'rgba(255,153,0,.10)',  d:'8,5' },
-  'Flash Flood Warning':         { c:'#00cc44', f:'rgba(0,204,68,.15)',   d:null  },
+  'Tornado Warning':             { c:'#e63333', f:'#e63333', fo:.25, d:null,  cat:'tor-warn'  },
+  'Tornado Watch':               { c:'#ff9900', f:'#ff9900', fo:.12, d:'8,5', cat:'tor-watch' },
+  'Severe Thunderstorm Warning': { c:'#f5c518', f:'#f5c518', fo:.20, d:null,  cat:'svr-warn'  },
+  'Severe Thunderstorm Watch':   { c:'#f5c518', f:'#f5c518', fo:.10, d:'8,5', cat:'svr-watch' },
+  'Flash Flood Warning':         { c:'#00cc44', f:'#00cc44', fo:.18, d:null,  cat:'flood'     },
 };
+
+// Per-category visibility
+const layerVis = { 'tor-warn':true, 'tor-watch':true, 'svr-warn':true, 'svr-watch':true, 'flood':true };
+
+// Store fill + line layers separately so we can toggle independently
+// warnStore[cat] = [ { fill: L.polygon, line: L.polygon }, ... ]
+const warnStore = {};
 const TICKERS = [];
-async function loadWarnings() {
-  try {
-    const d = await (await fetch(
-      'https://api.weather.gov/alerts/active?status=actual&message_type=alert&event=Tornado+Warning,Severe+Thunderstorm+Warning,Tornado+Watch,Flash+Flood+Warning',
-      { headers:{ 'User-Agent':'LiveStormChasers/1.0' } }
-    )).json();
-    warnLayers.forEach(l => map.removeLayer(l)); warnLayers = []; TICKERS.length = 0;
-    (d.features||[]).forEach(f => {
-      const p = f.properties, st = WSTYLE[p.event]||{c:'#aaa',f:'rgba(170,170,170,.1)',d:'4,4'};
-      const geo = f.geometry; if (!geo) return;
-      const rings = (geo.type==='Polygon'?[geo.coordinates[0]]:geo.coordinates.map(r=>r[0]))
-        .map(r=>r.map(([lng,lat])=>[lat,lng]));
-      const poly = L.polygon(rings,{color:st.c,weight:2.5,fillColor:st.f,fillOpacity:.4,dashArray:st.d});
-      if (warnVis) poly.addTo(map);
-      poly.bindTooltip(`<b>${p.event}</b><br>${p.areaDesc}`,{className:'lsc-tip',sticky:true});
-      warnLayers.push(poly); TICKERS.push(`${p.event}: ${p.areaDesc}`);
-    });
-    buildTicker();
-    setDataStatus('noaa', true, `${TICKERS.length} active warning${TICKERS.length !== 1 ? 's' : ''}`);
-  } catch(e) { buildTicker(['Check NWS for current warnings']); setDataStatus('noaa', false, 'Warnings unavailable'); }
+let warnVis = true;
+
+function toggleLayer(cat, on) {
+  layerVis[cat] = on;
+  if (!warnStore[cat]) return;
+  warnStore[cat].forEach(({ fill, line }) => {
+    if (on) { fill.addTo(map); line.addTo(map); }
+    else     { map.removeLayer(fill); map.removeLayer(line); }
+  });
 }
-loadWarnings(); setInterval(loadWarnings, 3*60_000);
+
 function toggleWarns() {
   warnVis = !warnVis;
-  warnLayers.forEach(l => warnVis ? l.addTo(map) : map.removeLayer(l));
+  Object.values(warnStore).forEach(arr =>
+    arr.forEach(({ fill, line }) => {
+      if (warnVis) { fill.addTo(map); line.addTo(map); }
+      else         { map.removeLayer(fill); map.removeLayer(line); }
+    })
+  );
   document.getElementById('btn-warns').classList.toggle('won', warnVis);
   document.getElementById('nb-warn').classList.toggle('won', warnVis);
 }
+
+async function loadWarnings() {
+  try {
+    const d = await (await fetch(
+      'https://api.weather.gov/alerts/active?status=actual&message_type=alert' +
+      '&event=Tornado+Warning,Tornado+Watch,Severe+Thunderstorm+Warning,Severe+Thunderstorm+Watch,Flash+Flood+Warning',
+      { headers:{ 'User-Agent':'LiveStormChasers/1.0' } }
+    )).json();
+
+    // Clear all existing warning layers
+    Object.values(warnStore).forEach(arr =>
+      arr.forEach(({ fill, line }) => { map.removeLayer(fill); map.removeLayer(line); })
+    );
+    Object.keys(warnStore).forEach(k => delete warnStore[k]);
+    TICKERS.length = 0;
+
+    (d.features||[]).forEach(f => {
+      const p  = f.properties;
+      const st = WSTYLE[p.event];
+      if (!st) return;
+      const geo = f.geometry; if (!geo) return;
+
+      const rings = (geo.type==='Polygon' ? [geo.coordinates[0]] : geo.coordinates.map(r=>r[0]))
+        .map(r => r.map(([lng,lat]) => [lat,lng]));
+
+      const cat = st.cat;
+      const vis = layerVis[cat] !== false && warnVis;
+
+      // Fill polygon → warnFillPane (below radar)
+      const fill = L.polygon(rings, {
+        pane:        'warnFillPane',
+        color:       'transparent',
+        weight:      0,
+        fillColor:   st.f,
+        fillOpacity: st.fo,
+      });
+
+      // Line polygon → warnLinePane (above radar)
+      const line = L.polygon(rings, {
+        pane:        'warnLinePane',
+        color:       st.c,
+        weight:      2.5,
+        fillOpacity: 0,
+        dashArray:   st.d,
+      });
+      line.bindTooltip(`<b>${p.event}</b><br>${p.areaDesc}`, { className:'lsc-tip', sticky:true });
+
+      if (vis) { fill.addTo(map); line.addTo(map); }
+
+      if (!warnStore[cat]) warnStore[cat] = [];
+      warnStore[cat].push({ fill, line });
+      TICKERS.push(`${p.event}: ${p.areaDesc}`);
+    });
+
+    buildTicker();
+    const total = TICKERS.length;
+    const wc = document.getElementById('warn-count');
+    if (wc) wc.textContent = total > 0 ? `${total} active warning${total!==1?'s':''}` : 'No active warnings';
+  } catch(e) {
+    buildTicker(['Check NWS for current warnings']);
+    const wc = document.getElementById('warn-count');
+    if (wc) wc.textContent = 'Warning data unavailable';
+  }
+}
+loadWarnings(); setInterval(loadWarnings, 3*60_000);
+
 function buildTicker(fallback) {
   const list = fallback || (TICKERS.length ? TICKERS : ['No active tornado or severe weather warnings']);
   const el = document.getElementById('tscroll'); el.innerHTML = '';
