@@ -228,8 +228,14 @@ const CHASER_CONFIG = [
   // Add more here when ready
 ];
 
-const WORKER_URL = 'https://spotternetwork-proxy.livestormchaser.workers.dev';
-const REFRESH_MS = 30_000;
+const WORKER_URL  = 'https://spotternetwork-proxy.livestormchaser.workers.dev';
+const YT_WORKER   = 'https://youtube-live.livestormchaser.workers.dev';
+const REFRESH_MS  = 30_000; // SN GPS refresh
+const YT_REFRESH  = 60_000; // YouTube live check — 1 minute
+
+// Tracks which chasers YouTube says are live right now
+// Populated by fetchYouTubeLive(), overrides CHASER_CONFIG.streaming
+const ytLiveState = {}; // { 'Joshua Napper': { url, viewers } } or empty
 
 // ── MAP ───────────────────────────────────────────────────────────────────────
 const map = L.map('map', { zoomControl:true, attributionControl:false }).setView([38.5,-97.0], 5);
@@ -417,27 +423,28 @@ function updateMap(snData) {
   let streamCt=0, viewerCt=0;
 
   CHASER_CONFIG.forEach(cfg => {
-    const sn = snData[cfg.sn_name];
+    const sn  = snData[cfg.sn_name];
+    const yt  = ytLiveState[cfg.sn_name]; // YouTube live data if streaming
+
     const s = chaserState[cfg.sn_name] = {
       ...cfg,
-      lat:     sn?.lat    ?? null,
-      lng:     sn?.lng    ?? null,
-      heading: sn?.heading?? null,
-      moving:  sn?.moving ?? false,
-      ts:      sn?.ts     ?? null,
-      online:  !!sn,
+      lat:        sn?.lat     ?? chaserState[cfg.sn_name]?.lat    ?? null,
+      lng:        sn?.lng     ?? chaserState[cfg.sn_name]?.lng    ?? null,
+      heading:    sn?.heading ?? chaserState[cfg.sn_name]?.heading?? null,
+      moving:     sn?.moving  ?? false,
+      ts:         sn?.ts      ?? chaserState[cfg.sn_name]?.ts     ?? null,
+      online:     !!sn,
+      // YouTube overrides static config: if YT says live, stream_url comes from YT
+      streaming:  !!yt || cfg.streaming,
+      stream_url: yt?.url || cfg.stream_url || '',
+      viewers:    yt?.viewers ?? cfg.viewers ?? 0,
     };
-    if (cfg.streaming) { streamCt++; viewerCt += cfg.viewers||0; }
+    if (s.streaming) { streamCt++; viewerCt += s.viewers||0; }
 
-    if (!s.lat || !s.lng) {
-      // No GPS position — keep any existing marker, or skip map placement
-      // They're still clickable via the Chasers panel
-      return;
-    }
+    if (!s.lat || !s.lng) return;
 
     // Determine icon state
-    // streaming = red, active GPS within 30 min = green, stale/offline = gray
-    const ACTIVE_THRESHOLD = 30 * 60; // 30 minutes in seconds
+    const ACTIVE_THRESHOLD = 30 * 60;
     const now = Math.floor(Date.now() / 1000);
     const isActive = s.online && s.ts && (now - s.ts) < ACTIVE_THRESHOLD;
     const iconState = s.streaming ? 'streaming' : isActive ? 'active' : 'stale';
@@ -477,6 +484,42 @@ function updateMap(snData) {
 
 fetchAndUpdate();
 setInterval(fetchAndUpdate, REFRESH_MS);
+
+// ── YOUTUBE LIVE DETECTION ────────────────────────────────────────────────────
+async function fetchYouTubeLive() {
+  if (!YT_WORKER || YT_WORKER.includes('YOUR_SUBDOMAIN')) return; // not configured yet
+
+  try {
+    const r = await fetch(YT_WORKER, { signal: AbortSignal.timeout(10000) });
+    if (!r.ok) return;
+    const data = await r.json();
+    if (!data.ok) { console.warn('YouTube worker:', data.error); return; }
+
+    // Clear previous live state
+    Object.keys(ytLiveState).forEach(k => delete ytLiveState[k]);
+
+    // Set new live state from YouTube response
+    Object.entries(data.live || {}).forEach(([snName, info]) => {
+      ytLiveState[snName] = info;
+    });
+
+    // Re-render map markers and panel with updated live state
+    // We reuse the last known SN data — just update icons/badges
+    const lastSN = {};
+    CHASER_CONFIG.forEach(cfg => {
+      const s = chaserState[cfg.sn_name];
+      if (s) lastSN[cfg.sn_name] = s;
+    });
+    updateMap(lastSN);
+
+    console.log(`YouTube: ${Object.keys(ytLiveState).length} live stream(s) detected`);
+  } catch(e) {
+    console.warn('YouTube live check failed:', e.message);
+  }
+}
+
+fetchYouTubeLive();
+setInterval(fetchYouTubeLive, YT_REFRESH);
 
 // ── PANEL ─────────────────────────────────────────────────────────────────────
 function renderPanel() {
