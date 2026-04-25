@@ -239,7 +239,10 @@ const ytLiveState = {}; // { 'Joshua Napper': { url, viewers } } or empty
 
 // ── MAP ───────────────────────────────────────────────────────────────────────
 const map = L.map('map', { zoomControl:true, attributionControl:false }).setView([38.5,-97.0], 5);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:18, opacity:.9 }).addTo(map);
+
+// Base map WITHOUT labels (radar goes on top of this)
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}.png',
+  { maxZoom:18, opacity:.9 }).addTo(map);
 
 // ── RADAR ─────────────────────────────────────────────────────────────────────
 let radarLayer = null, radarVis = true;
@@ -253,13 +256,23 @@ async function loadRadar() {
       { opacity: 0.65, maxNativeZoom: 6, maxZoom: 18 }
     );
     if (radarVis) radarLayer.addTo(map);
+    // Always keep labels on top after radar loads
+    labelsLayer.bringToFront();
   } catch(e) {}
 }
+
+// Labels-only layer — sits above radar so town/road names are always visible
+const labelsLayer = L.tileLayer(
+  'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}.png',
+  { maxZoom:18, opacity:1, zIndex:500 }
+).addTo(map);
+
 loadRadar();
 setInterval(loadRadar, 5*60_000);
 function toggleRadar() {
   radarVis = !radarVis;
   radarLayer && (radarVis ? radarLayer.addTo(map) : map.removeLayer(radarLayer));
+  if (radarVis) labelsLayer.bringToFront();
   document.getElementById('btn-radar').classList.toggle('on', radarVis);
   document.getElementById('nb-radar').classList.toggle('on', radarVis);
   document.getElementById('rl').style.display = radarVis ? '' : 'none';
@@ -462,7 +475,7 @@ function updateMap(snData) {
       markers[cfg.sn_name].unbindTooltip();
       markers[cfg.sn_name].bindTooltip(tipHTML,{className:'lsc-tip',direction:'top',offset:[0,-22]});
     } else {
-      const m = L.marker([s.lat,s.lng],{ icon, zIndexOffset: s.streaming?1000:0 }).addTo(map);
+      const m = L.marker([s.lat,s.lng],{ icon, zIndexOffset: s.streaming?10000:9000 }).addTo(map);
       m.bindTooltip(tipHTML,{className:'lsc-tip',direction:'top',offset:[0,-22]});
       m.on('click', () => openPopup(cfg.sn_name));
       markers[cfg.sn_name] = m;
